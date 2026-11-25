@@ -1,0 +1,2301 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>FreshGuard: AI Multi-Zone Cold Storage Digital Twin</title>
+<style>
+:root{
+  --bg:#060a0f;--panel:#0b111a;--panel2:#101926;--glass:rgba(8,14,22,.84);--bd:rgba(160,202,244,.16);--bd2:rgba(160,202,244,.32);
+  --t:#f1f6fc;--m:#8fa6bf;--g:#10b981;--g2:#34d399;--o:#f59e0b;--o2:#fbbf24;--cy:#38bdf8;--r:#f43f5e;--vi:#a78bfa;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none;background:var(--bg);color:var(--t);font:12.5px/1.42 "Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.app{position:fixed;inset:0;display:flex;flex-direction:row;width:100%;height:100%;overflow:hidden}
+.stage{position:relative;flex:1 1 auto;min-width:0;min-height:0;display:flex;flex-direction:row;background:#05090e}
+.pane{position:relative;flex:1 1 50%;min-width:0;min-height:0;overflow:hidden;background:#0a1420}
+.pane canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+.pane canvas:active{cursor:grabbing}
+.pane::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,rgba(0,0,0,0) 58%,rgba(4,9,18,.26) 86%,rgba(2,5,12,.54) 100%);box-shadow:inset 0 0 34px rgba(1,4,10,.42)}
+.divider{width:2px;background:linear-gradient(180deg,rgba(56,189,248,.16),rgba(148,197,245,.46),rgba(56,189,248,.16));z-index:5;flex-shrink:0}
+@media (max-width:767px) and (orientation:portrait){
+  .stage{flex-direction:column}
+  .divider{width:100%;height:2px;background:linear-gradient(90deg,rgba(56,189,248,.16),rgba(148,197,245,.46),rgba(56,189,248,.16))}
+}
+/* docked right sidebar on desktop (>=1024px) */
+.side{width:368px;flex-shrink:0;height:100%;background:linear-gradient(180deg,var(--panel2) 0%,var(--panel) 100%);border-left:1px solid var(--bd);display:flex;flex-direction:column;z-index:18;overflow:hidden}
+.side-top{padding:10px 12px 8px;border-bottom:1px solid var(--bd);display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+.shdr{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.shdr b{font-size:13.5px;color:#f7fbff;letter-spacing:-.01em}
+.stabs{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;background:rgba(6,10,16,.7);padding:3px;border-radius:9px;border:1px solid var(--bd)}
+.stab{background:transparent;border:none;color:var(--m);font:inherit;font-size:10.5px;font-weight:700;padding:5px 2px;border-radius:6px;cursor:pointer;transition:all .15s;text-align:center}
+.stab.on{background:rgba(56,189,248,.18);color:#e0f2fe;box-shadow:inset 0 0 0 1px rgba(56,189,248,.35)}
+.side-body{flex:1 1 auto;overflow-y:auto;padding:10px 12px 14px;display:flex;flex-direction:column;gap:9px}
+.side-body::-webkit-scrollbar{width:5px}.side-body::-webkit-scrollbar-thumb{background:rgba(148,163,184,.25);border-radius:99px}
+.tpane{display:none;flex-direction:column;gap:9px}.tpane.on{display:flex}
+.sim-foot{padding:6px 12px;border-top:1px solid var(--bd);font-size:10px;color:#7389a1;text-align:center;background:rgba(6,10,16,.6);flex-shrink:0}
+.cfg-btn,.side-close{display:none}
+@media (max-width:1023px){
+  .cfg-btn{display:flex;position:fixed;top:max(8px,env(safe-area-inset-top,0px));right:8px;z-index:22;width:44px;height:44px;border-radius:12px;align-items:center;justify-content:center;background:rgba(10,17,27,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--bd2);color:#eef5fc;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.48)}
+  .cfg-btn.open{border-color:var(--g2);background:rgba(16,185,129,.22);color:#6ee7b7}
+  .cfg-btn svg{width:20px;height:20px;transition:transform .25s}.cfg-btn.open svg{transform:rotate(65deg)}
+  .cfg-dot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--r);box-shadow:0 0 8px var(--r);display:none}
+  .cfg-btn.has-ev .cfg-dot{display:block}
+  .side{position:fixed;top:calc(max(8px,env(safe-area-inset-top,0px)) + 50px);right:8px;width:min(380px,calc(100vw - 16px));height:auto;max-height:calc(100dvh - 68px);border:1px solid var(--bd2);border-radius:16px;background:rgba(10,17,27,.95);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 20px 52px rgba(0,0,0,.70);display:none}
+  .side.show{display:flex;animation:popIn .16s ease-out}
+  .side-close{display:inline-flex;background:transparent;border:none;color:var(--m);font-size:16px;cursor:pointer;padding:2px 6px}
+}
+@keyframes popIn{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
+/* Record Mode hides chrome */
+body.rec .side,body.rec .cfg-btn,body.rec .mwalk{display:none!important}
+/* viewport floating badges & bottom HUD */
+.pbadge{position:absolute;top:max(10px,env(safe-area-inset-top,0px));left:10px;z-index:6;display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--bd);box-shadow:0 6px 20px rgba(0,0,0,.36);pointer-events:none}
+.pbadge.th{border-color:rgba(245,158,11,.42)}.pbadge.ai{border-color:rgba(16,185,129,.45)}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.a{background:var(--o);box-shadow:0 0 9px var(--o)}.dot.b{background:var(--g);box-shadow:0 0 9px var(--g)}
+.ptitle{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:#f5f9ff}
+.psub{font-size:10px;font-weight:600;color:var(--m);padding-left:6px;border-left:1px solid rgba(255,255,255,.15);font-variant-numeric:tabular-nums}
+.pbadge.th .psub{color:#fcd34d}.pbadge.ai .psub{color:#6ee7b7}
+.flag-strip{position:absolute;top:44px;left:10px;z-index:6;display:flex;gap:5px;flex-wrap:wrap;pointer-events:none}
+.flag{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:6px;display:none}
+.flag.show{display:inline-flex}
+.flag.warn{background:rgba(245,158,11,.22);border:1px solid rgba(245,158,11,.6);color:#fde68a}
+.flag.bad{background:rgba(244,63,94,.24);border:1px solid rgba(244,63,94,.65);color:#fda4af}
+.flag.cy{background:rgba(56,189,248,.22);border:1px solid rgba(56,189,248,.6);color:#bae6fd}
+.bhud{position:absolute;left:10px;right:10px;bottom:max(10px,env(safe-area-inset-bottom,0px));z-index:6;display:flex;flex-direction:column;gap:5px;pointer-events:none}
+.hud{background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--bd);color:#eef5fc;padding:6px 10px;border-radius:9px;font-size:11px;line-height:1.35;font-variant-numeric:tabular-nums}
+.k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.km{background:rgba(8,14,22,.82);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--bd);border-radius:8px;padding:4px 7px;display:flex;flex-direction:column}
+.km span{font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--m);font-weight:600}
+.km b{font-size:12.5px;font-weight:750;color:#f4f9ff;font-variant-numeric:tabular-nums}
+.km.bad b{color:#fb7185}.km.good b{color:var(--g2)}.km.warn b{color:var(--o2)}
+@media (max-width:640px){
+  .bhud{left:6px;right:6px;bottom:6px;gap:4px}
+  .hud{font-size:9.5px;padding:4px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .k{gap:4px}.km{padding:3px 5px}.km span{font-size:8px}.km b{font-size:10.5px}
+  .pbadge{top:7px;left:7px;padding:4px 8px}.ptitle{font-size:10px}.psub{display:none}
+}
+/* top-center clock & savings pill */
+.top-mid{position:absolute;top:max(10px,env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:12;display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;background:rgba(7,13,21,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--bd2);box-shadow:0 8px 24px rgba(0,0,0,.44);white-space:nowrap;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;pointer-events:none}
+.sav-pill{padding:2px 8px;border-radius:999px;background:rgba(16,185,129,.18);border:1px solid rgba(16,185,129,.45);color:#6ee7b7;font-weight:700}
+.sav-pill.neg{background:rgba(244,63,94,.20);border-color:rgba(244,63,94,.5);color:#fda4af}
+@media (max-width:767px) and (orientation:portrait){
+  .top-mid{top:50%;transform:translate(-50%,-50%);font-size:10px;padding:4px 9px;gap:5px}
+}
+/* floating legend for Gas / Thermal overlay */
+.ov-leg{position:absolute;top:46px;left:50%;transform:translateX(-50%);z-index:11;display:none;align-items:center;gap:8px;padding:4px 10px;border-radius:8px;background:rgba(7,13,21,.88);border:1px solid var(--bd2);font-size:10.5px;color:#dce8f5;pointer-events:none}
+.ov-leg.show{display:flex}
+.leg-bar{width:96px;height:8px;border-radius:4px}
+/* Story Mode caption bar */
+.story-bar{position:absolute;bottom:108px;left:50%;transform:translateX(-50%);z-index:16;width:min(640px,calc(100% - 24px));display:none;flex-direction:column;gap:6px;background:rgba(6,11,18,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(16,185,129,.5);border-radius:14px;padding:11px 14px;box-shadow:0 14px 40px rgba(0,0,0,.65)}
+.story-bar.show{display:flex}
+.story-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.story-top b{color:#6ee7b7;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
+.story-txt{font-size:13px;color:#f1f6fc;line-height:1.4}
+.story-btns{display:flex;gap:6px}
+.story-btns button{font:inherit;font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;border:1px solid var(--bd2);background:rgba(18,29,44,.9);color:var(--t);cursor:pointer}
+/* mobile touch walk pad */
+.mwalk{display:none;position:fixed;right:10px;top:50%;transform:translateY(-50%);z-index:16;flex-direction:column;gap:6px}
+.mwalk button{width:44px;height:44px;border-radius:12px;border:1px solid var(--bd2);background:rgba(9,16,26,.84);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#e2f2ff;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;touch-action:none;user-select:none;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.mwalk button:active,.mwalk button.held{background:rgba(16,185,129,.28);border-color:var(--g2);color:#6ee7b7}
+@media (max-width:1023px),(pointer:coarse){.mwalk{display:flex}}
+/* sidebar controls */
+.ssec{display:flex;flex-direction:column;gap:6px;background:rgba(15,24,36,.52);border:1px solid var(--bd);border-radius:11px;padding:8px 10px}
+.ssec-t{display:flex;justify-content:space-between;align-items:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--m)}
+.brow{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.brow button,.brow select,.ssec select,.ssec input[type=number]{flex:1 1 auto;font:inherit;font-size:11.5px;font-weight:600;color:var(--t);background:rgba(20,31,46,.92);border:1px solid var(--bd);border-radius:7px;padding:5px 8px;cursor:pointer;min-width:0}
+.brow button:hover,.brow select:hover{border-color:var(--cy);background:rgba(28,44,64,.98)}
+#pl{background:rgba(16,185,129,.18);border-color:rgba(16,185,129,.45);color:#6ee7b7}
+.srow{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;color:#d6e4f2}
+.srow input[type=range]{flex:1;accent-color:var(--g);cursor:pointer}
+.ev-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.ev-btn{font:inherit;font-size:11px;font-weight:600;color:#e5eef7;background:rgba(18,29,44,.88);border:1px solid var(--bd);border-radius:7px;padding:6px 7px;cursor:pointer;text-align:left;transition:all .15s}
+.ev-btn:hover{border-color:var(--cy);background:rgba(26,42,62,.96)}
+.ev-btn.act{background:rgba(244,63,94,.20);border-color:rgba(244,63,94,.65);color:#fda4af}
+.ev-btn.wide{grid-column:span 2;background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.34);text-align:center}
+.act-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.act-p{background:rgba(8,14,22,.78);border:1px solid var(--bd);border-radius:7px;padding:4px 2px;text-align:center;font-size:8.5px;color:var(--m);font-weight:650}
+.act-p b{display:block;font-size:9.5px;color:#cbd5e1;margin-top:1px}
+.act-p.on{border-color:rgba(16,185,129,.5);background:rgba(16,185,129,.14);color:#a7f3d0}.act-p.on b{color:#34d399}
+.act-p.cy{border-color:rgba(56,189,248,.5);background:rgba(56,189,248,.14);color:#bae6fd}.act-p.cy b{color:#38bdf8}
+.act-p.am{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.14);color:#fde68a}.act-p.am b{color:#fbbf24}
+.trow{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.chk{display:flex;align-items:center;gap:5px;background:rgba(8,14,22,.65);border:1px solid var(--bd);border-radius:7px;padding:5px 7px;font-size:10.5px;color:#dbe7f3;cursor:pointer;user-select:none}
+.chk input{accent-color:var(--g);margin:0;cursor:pointer}
+.mini-imp{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.mi{background:rgba(16,185,129,.09);border:1px solid rgba(16,185,129,.26);border-radius:8px;padding:5px 7px;display:flex;flex-direction:column}
+.mi span{font-size:9px;color:var(--m);text-transform:uppercase;font-weight:600}
+.mi b{font-size:13px;color:#6ee7b7;font-variant-numeric:tabular-nums}
+#ch{width:100%;height:132px;border-radius:8px;background:rgba(6,10,16,.78);border:1px solid var(--bd);display:block}
+.al-list,.why-list,.log-box{display:flex;flex-direction:column;gap:4px}
+.al-item{display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:7px;background:rgba(10,17,27,.8);border:1px solid var(--bd);font-size:10.5px;color:#dce8f5}
+.al-item.urg{border-color:rgba(244,63,94,.45);background:rgba(244,63,94,.10)}
+.al-item.evt{border-color:rgba(56,189,248,.40);background:rgba(56,189,248,.10)}
+.al-item.ok{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.08);color:#a7f3d0}
+.al-tag{font-size:8.5px;font-weight:700;text-transform:uppercase;padding:1px 5px;border-radius:4px;flex-shrink:0}
+.al-item.urg .al-tag{background:rgba(244,63,94,.25);color:#fda4af}
+.al-item.evt .al-tag{background:rgba(56,189,248,.25);color:#7dd3fc}
+.al-item.ok .al-tag{background:rgba(16,185,129,.25);color:#6ee7b7}
+.why-it{background:rgba(8,14,22,.78);border:1px solid var(--bd);border-left:3px solid var(--g);border-radius:7px;padding:6px 8px;font-size:10.5px;color:#dce8f5}
+.why-it small{display:block;color:#6ee7b7;font-weight:600;margin-top:2px}
+.json-log{font:10px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;background:#05090e;border:1px solid var(--bd);border-radius:7px;padding:7px;max-height:135px;overflow-y:auto;color:#93c5fd;white-space:pre-wrap;word-break:break-all}
+.tbl{width:100%;border-collapse:collapse;font-size:10.5px}
+.tbl th,.tbl td{padding:4px 5px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}
+.tbl th{color:var(--m);font-weight:700;text-transform:uppercase;font-size:9px}
+.tbl td b{color:#e2f2ff}
+.tbl tr.loss td{background:rgba(244,63,94,.12)}
+.prog{height:6px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden}
+.prog>div{height:100%;width:0;background:linear-gradient(90deg,#38bdf8,#10b981);transition:width .12s}
+.biz-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.biz-f{display:flex;flex-direction:column;gap:2px;font-size:10px;color:var(--m)}
+.biz-out{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:4px}
+.st-pass{color:#34d399;font-weight:700}.st-fail{color:#fb7185;font-weight:700}
+/* 2-step launch onboarding modal */
+.ovl{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(4,8,14,.76);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:opacity .22s}
+.ovl.hide{opacity:0;pointer-events:none}
+.modal{width:min(560px,100%);max-height:92dvh;overflow-y:auto;background:linear-gradient(180deg,#121d2c 0%,#0b121c 100%);border:1px solid var(--bd2);border-radius:18px;padding:18px 20px;box-shadow:0 24px 64px rgba(0,0,0,.74);display:flex;flex-direction:column;gap:12px}
+.mstep{display:none;flex-direction:column;gap:12px}.mstep.on{display:flex}
+.mbadge{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#6ee7b7}
+.modal h1{margin:0;font-size:20px;font-weight:750;letter-spacing:-.02em;color:#f8fbff}
+.modal p{margin:0;font-size:12.5px;color:var(--m);line-height:1.45}
+.zcards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media (max-width:520px){.zcards{grid-template-columns:1fr}}
+.zc{background:rgba(8,14,22,.78);border:1px solid var(--bd);border-radius:10px;padding:8px 9px;display:flex;flex-direction:column;gap:3px}
+.zc b{font-size:11.5px;color:#f1f6fc}.zc span{font-size:10.5px;color:var(--m);line-height:1.32}
+.zc.zc2{border-top:2px solid #f59e0b}.zc.zb{border-top:2px solid #f43f5e}.zc.za{border-top:2px solid #38bdf8}
+.ctrl-tips{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:#cbd8e6;background:rgba(8,14,22,.6);border:1px solid var(--bd);border-radius:9px;padding:7px 10px}
+.ctrl-tips b{color:#7dd3fc}
+.sc-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.sc-opt{background:rgba(12,20,32,.85);border:1px solid var(--bd);border-radius:9px;padding:8px 10px;cursor:pointer;text-align:left;color:var(--t);transition:all .15s;display:flex;flex-direction:column;gap:2px}
+.sc-opt b{font-size:12px}.sc-opt small{font-size:10.5px;color:var(--m)}
+.sc-opt:hover{border-color:var(--cy)}.sc-opt.sel{background:rgba(16,185,129,.16);border-color:var(--g2);box-shadow:0 0 0 1px rgba(16,185,129,.4)}
+.sc-opt.sel b{color:#6ee7b7}
+.mfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:2px}
+.pbtn{flex:1;padding:10px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#10b981,#059669);color:#04150e;font:inherit;font-size:13px;font-weight:750;cursor:pointer;box-shadow:0 8px 22px rgba(16,185,129,.32)}
+.sbtn{padding:10px 14px;border-radius:10px;border:1px solid var(--bd2);background:transparent;color:var(--m);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+/* Full Benchmark Modal */
+.bm-modal{width:min(880px,100%);max-height:92dvh}
+.err-toast{position:fixed;left:12px;bottom:12px;z-index:99;max-width:340px;padding:9px 12px;border-radius:10px;background:rgba(48,10,18,.95);border:1px solid rgba(244,63,94,.7);color:#fecdd3;font-size:11.5px;display:none;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+</style></head><body>
+
+<div class="app">
+  <div class="stage">
+    <div class="pane">
+      <div class="pbadge th"><span class="dot a"></span><span class="ptitle" id="bTitle">Baseline · Tuned Thermostat</span><span class="psub" id="pb">Fixed 8°C</span></div>
+      <div class="flag-strip"><span id="bDefrost" class="flag cy">Defrost Cycle</span></div>
+      <canvas id="cb"></canvas>
+      <div class="bhud">
+        <div class="hud" id="hb"></div>
+        <div class="k" id="mb"></div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="pane">
+      <div class="pbadge ai"><span class="dot b"></span><span class="ptitle" id="aTitle">FreshGuard AI · MPC + RLS</span><span class="psub" id="pa">Active</span></div>
+      <div class="flag-strip">
+        <span id="aSensWarn" class="flag warn">Sensor Suspect</span>
+        <span id="aSafeFlag" class="flag bad">Safety Override</span>
+        <span id="aShadFlag" class="flag cy">Shadow Mode</span>
+        <span id="aNoAiFlag" class="flag warn">AI Removed</span>
+      </div>
+      <canvas id="ca"></canvas>
+      <div class="bhud">
+        <div class="hud" id="ha"></div>
+        <div class="k" id="ma"></div>
+      </div>
+    </div>
+    <div class="top-mid">
+      <span id="clk">Day 1 · 08:00 · 26°C</span>
+      <span class="sav-pill" id="savTop">vs Tuned: ₹0</span>
+    </div>
+    <div id="ovLeg" class="ov-leg"><span id="legTitle">Gas (ppm)</span><span id="legMin">0</span><div id="legBar" class="leg-bar"></div><span id="legMax">150</span></div>
+    <div id="storyBar" class="story-bar">
+      <div class="story-top"><b id="storyStep">Guided Demo · 1/6</b><div class="story-btns"><button id="stPause">Pause</button><button id="stSkip">Next →</button><button id="stRec">Record Mode</button><button id="stExit">Exit</button></div></div>
+      <div id="storyTxt" class="story-txt"></div>
+    </div>
+  </div>
+
+  <aside id="side" class="side">
+    <div class="side-top">
+      <div class="shdr">
+        <b>FreshGuard Control Lab</b>
+        <div style="display:flex;gap:5px;align-items:center">
+          <button id="btnDemo" style="font:inherit;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(16,185,129,.5);background:rgba(16,185,129,.16);color:#6ee7b7;cursor:pointer">▶ Guided Demo</button>
+          <button id="sideClose" class="side-close" aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div class="stabs">
+        <button class="stab on" data-t="ctrl">Sim</button>
+        <button class="stab" data-t="ai">AI Brain</button>
+        <button class="stab" data-t="bench">Bench</button>
+        <button class="stab" data-t="hw">Sim2Real</button>
+        <button class="stab" data-t="biz">Biz/Info</button>
+      </div>
+    </div>
+
+    <div class="side-body">
+      <!-- TAB 1: SIM CONTROLS & SCENARIOS -->
+      <div id="tp-ctrl" class="tpane on">
+        <div class="mini-imp">
+          <div class="mi"><span>Rescued</span><b id="ikg">+0 kg</b></div>
+          <div class="mi"><span>Net Saved</span><b id="irs">₹0</b></div>
+          <div class="mi"><span>CO₂ Saved</span><b id="ico2">0 kg</b></div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>AI Zone Actuators</span><span id="fpsTag" style="color:#7dd3fc">60 FPS</span></div>
+          <div class="act-grid">
+            <div class="act-p" id="acAC">COOL<b id="vAC">OFF</b></div>
+            <div class="act-p" id="acMist">MIST A<b id="vMist">OFF</b></div>
+            <div class="act-p" id="acVent">VENT B<b id="vVent">SHUT</b></div>
+            <div class="act-p" id="acGas">GAS C<b id="vGas">0ppm</b></div>
+            <div class="act-p" id="acLit">GROW C<b id="vLit">DIM</b></div>
+          </div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Baseline &amp; Playback</span></div>
+          <div class="srow">
+            <label for="baseSel">Left Room</label>
+            <select id="baseSel">
+              <option value="tuned" selected>Tuned Thermostat (Fair)</option>
+              <option value="expert">Rule-Based Expert</option>
+              <option value="naive">Naive Legacy</option>
+            </select>
+          </div>
+          <div class="brow">
+            <button id="pl">Play</button>
+            <button id="rs">Reset</button>
+            <select id="sd"><option value="2">Slow</option><option value="6" selected>Normal</option><option value="24">Fast</option></select>
+            <select id="qualSel" title="Graphics Quality"><option value="auto" selected>Auto Q</option><option value="high">High Q</option><option value="low">Low Q</option></select>
+          </div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Camera &amp; Visual Overlays</span></div>
+          <div class="srow"><label for="wk">Walk</label><input id="wk" type="range" min="-10" max="8.2" step=".1" value="-9.2"></div>
+          <div class="brow">
+            <button id="camZ3">Zone C</button>
+            <button id="camZ2">Zone B</button>
+            <button id="camZ1">Zone A</button>
+            <button id="ov">Overview</button>
+          </div>
+          <div class="trow">
+            <label class="chk"><input type="checkbox" id="chkTag" checked>Spoil Tags</label>
+            <label class="chk"><input type="checkbox" id="chkInsp">Inspect All</label>
+            <label class="chk"><input type="checkbox" id="chkGas" checked>Gas Plume</label>
+            <label class="chk"><input type="checkbox" id="chkTherm">Thermal Map</label>
+          </div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Scenarios</span><span id="scNow" style="color:#7dd3fc">Standard</span></div>
+          <div class="srow"><label for="sp">Setpoint</label><input id="sp" type="range" min="2" max="14" value="8"><b id="spv" style="color:var(--o2)">8°C</b></div>
+          <div class="ev-grid">
+            <button id="e1" class="ev-btn">Hot Day +8°C</button>
+            <button id="e2" class="ev-btn">Power Cut 10h</button>
+            <button id="e3" class="ev-btn">Door Open 3h</button>
+            <button id="e4" class="ev-btn">Warm Harvest</button>
+            <button id="e5" class="ev-btn">Dry Spell 12h</button>
+            <button id="e6" class="ev-btn">Ethylene Surge</button>
+            <button id="e8" class="ev-btn">Sensor Fault</button>
+            <button id="e9" class="ev-btn">Grid Cut (Fcst)</button>
+            <button id="e7" class="ev-btn wide">Summer Mandi Crisis (36h Heat + 8h Cut)</button>
+          </div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Freshness (Simulated)</span><span><span style="color:#f59e0b">■</span> Base &nbsp;<span style="color:#10b981">■</span> AI</span></div>
+          <canvas id="ch" width="320" height="132"></canvas>
+          <div id="al" class="al-list"></div>
+        </div>
+      </div>
+
+      <!-- TAB 2: AI BRAIN (PERCEIVE / ESTIMATE / PREDICT / DECIDE / SAFETY) -->
+      <div id="tp-ai" class="tpane">
+        <div class="ssec">
+          <div class="ssec-t"><span>AI Mode &amp; Ablation Toggles</span></div>
+          <div class="trow">
+            <label class="chk"><input type="checkbox" id="chkNoAi">Remove AI (Ablation)</label>
+            <label class="chk"><input type="checkbox" id="chkShadow">Shadow Mode</label>
+            <label class="chk"><input type="checkbox" id="chkGap" checked>Sim-to-Real Gap</label>
+            <label class="chk"><input type="checkbox" id="chkRec">Record Mode</label>
+          </div>
+          <div id="shadBox" style="display:none;font-size:10.5px;color:#7dd3fc;background:rgba(56,189,248,.10);border:1px solid rgba(56,189,248,.35);border-radius:7px;padding:6px 8px"></div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Online RLS Model Error (MAPE)</span><span style="color:#6ee7b7">Shrinking</span></div>
+          <div class="mini-imp">
+            <div class="mi"><span>Zone A</span><b id="mapeA">--%</b></div>
+            <div class="mi"><span>Zone B</span><b id="mapeB">--%</b></div>
+            <div class="mi"><span>Zone C</span><b id="mapeC">--%</b></div>
+          </div>
+          <div style="font-size:10px;color:var(--m)">True physics includes hidden per-crate variance, T×ppm interactions, ripeness sensitivity &amp; autocatalytic ethylene not present in the RLS basis.</div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Kalman Filter &amp; Damper Split</span><span id="kfStatus" style="color:#6ee7b7">Nominal</span></div>
+          <div id="kfTbl" style="font-size:10.5px;color:#dbe7f3"></div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Why Did the AI Do That? (MPC)</span></div>
+          <div id="whyList" class="why-list"></div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Safety Interlocks</span><span id="safeTxt" style="color:#34d399">All Clear</span></div>
+          <div style="font-size:10.5px;color:var(--m)">Hard bounds: Setpoint 2–15°C · Min compressor off 0.5h · Gas cap 150 ppm · Watchdog reverts to safe defaults if zone sensors drop &gt;1h.</div>
+        </div>
+      </div>
+
+      <!-- TAB 3: HEADLESS BENCHMARK & SELF-TESTS -->
+      <div id="tp-bench" class="tpane">
+        <div class="ssec">
+          <div class="ssec-t"><span>Paired Headless Benchmark (7 Days)</span></div>
+          <div class="srow">
+            <label for="bmSeeds">Seeds (paired)</label>
+            <input id="bmSeeds" type="number" min="5" max="100" value="20" style="max-width:74px">
+            <button id="btnRunBm" style="background:rgba(16,185,129,.22);border:1px solid rgba(16,185,129,.55);color:#6ee7b7;font-weight:700;padding:6px 10px;border-radius:7px;cursor:pointer">Run All 9</button>
+          </div>
+          <div class="prog"><div id="bmProg"></div></div>
+          <div id="bmStat" style="font-size:10.5px;color:var(--m)">Runs Baseline vs AI on identical seeds &amp; initial crates. Losses are highlighted honestly.</div>
+          <div class="brow">
+            <button id="btnBmOpen">Full Report</button>
+            <button id="btnCsv">Export CSV</button>
+            <button id="btnJson">Export JSON</button>
+            <button id="btnCopy">Copy Summary</button>
+          </div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Net INR Saved per Scenario (Mean ± 95% CI)</span></div>
+          <canvas id="bmCh" width="320" height="165" style="width:100%;height:165px;border-radius:7px;background:#060b12;border:1px solid var(--bd)"></canvas>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Automated Self-Tests</span><button id="btnTests" style="font:inherit;font-size:10px;padding:2px 7px;border-radius:5px;border:1px solid var(--bd2);background:rgba(20,31,46,.9);color:#e2f2ff;cursor:pointer">Re-run</button></div>
+          <div id="testOut" style="font-size:10.5px;display:flex;flex-direction:column;gap:3px"></div>
+        </div>
+      </div>
+
+      <!-- TAB 4: SIM-TO-REAL HARDWARE BRIDGE -->
+      <div id="tp-hw" class="tpane">
+        <div class="ssec">
+          <div class="ssec-t"><span>MQTT / Hardware JSON Stream</span><button id="btnExpCtrl" style="font:inherit;font-size:10px;padding:2px 8px;border-radius:5px;border:1px solid rgba(16,185,129,.5);background:rgba(16,185,129,.16);color:#6ee7b7;cursor:pointer">Export controller.js</button></div>
+          <div id="hwLog" class="json-log">Waiting for telemetry...</div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Hardware Mapping &amp; Approx. BOM (INR)</span></div>
+          <table class="tbl">
+            <thead><tr><th>Sim Element</th><th>Real Hardware</th><th>INR</th></tr></thead>
+            <tbody>
+              <tr><td><b>Zone MCU (×3)</b></td><td>ESP32-WROOM-32 Wi-Fi/MQTT</td><td>₹1,350</td></tr>
+              <tr><td><b>Temp &amp; RH (×6)</b></td><td>SHT31-D (redundant pair/zone)</td><td>₹2,400</td></tr>
+              <tr><td><b>Gas Proxy (×3)</b></td><td>MQ-135 / electrochemical C₂H₄*</td><td>₹1,800</td></tr>
+              <tr><td><b>Relays / SSR</b></td><td>8-ch opto-isolated SSR board</td><td>₹1,400</td></tr>
+              <tr><td><b>Dampers (×3)</b></td><td>MG996R servo + PVC louvers</td><td>₹1,200</td></tr>
+              <tr><td><b>Energy Meter</b></td><td>ACS712-30A / PZEM-004T</td><td>₹950</td></tr>
+              <tr><td><b>Gateway + PSU</b></td><td>Raspberry Pi Zero 2W + 12V/5V</td><td>₹3,400</td></tr>
+              <tr><td><b>Total Pilot</b></td><td><b>3-Zone Retrofit Kit (est.)</b></td><td><b>₹12,500</b></td></tr>
+            </tbody>
+          </table>
+          <div style="font-size:10px;color:var(--m)">*MQ-series sensors are non-selective VOC proxies with RH cross-sensitivity &amp; drift; field deployment requires 2-point calibration or electrochemical C₂H₄ cells.</div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Calibration &amp; Deployment Plan</span></div>
+          <div style="font-size:10.5px;color:#cbd8e6;line-height:1.42">
+            <b>1. Bench Cal:</b> Zero/span SHT31 &amp; gas sensors over 48h.<br>
+            <b>2. Shadow Mode (7d):</b> Log real crates while existing thermostat controls; fit RLS weights.<br>
+            <b>3. Supervised Control:</b> Operator approves setpoint/vent shifts via phone alerts.<br>
+            <b>4. Autonomous MPC:</b> Closed-loop control with hardware watchdog &amp; relay interlocks.
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: BUSINESS CASE & ASSUMPTIONS -->
+      <div id="tp-biz" class="tpane">
+        <div class="ssec">
+          <div class="ssec-t"><span>Editable Business Case (Simulated)</span></div>
+          <div class="biz-grid">
+            <label class="biz-f">Capacity (tonnes)<input id="bzCap" type="number" min="0.5" max="100" step="0.5" value="10"></label>
+            <label class="biz-f">Avg Price (₹/kg)<input id="bzPr" type="number" min="5" max="200" step="1" value="30"></label>
+            <label class="biz-f">Tariff (₹/kWh)<input id="bzEp" type="number" min="3" max="20" step="0.5" value="8"></label>
+            <label class="biz-f">Hardware Cost (₹)<input id="bzHw" type="number" min="5000" max="200000" step="500" value="25000"></label>
+            <label class="biz-f">Typical Loss (%/mo)*<input id="bzLs" type="number" min="2" max="40" step="1" value="12"></label>
+            <label class="biz-f">Grid CO₂ (kg/kWh)<input id="bzCo2" type="number" min="0.2" max="1.2" step="0.02" value="0.82"></label>
+          </div>
+          <div class="biz-out">
+            <div class="mi"><span>Est. Saved/mo</span><b id="bzSav">₹--</b></div>
+            <div class="mi"><span>Payback</span><b id="bzPay">-- mo</b></div>
+            <div class="mi"><span>Cost/Tonne</span><b id="bzCpt">₹--</b></div>
+          </div>
+          <div style="font-size:9.5px;color:var(--m)">*All outputs are simulated extrapolations scaled from the active 360 kg room run, not field-measured customer traction.</div>
+        </div>
+        <div class="ssec">
+          <div class="ssec-t"><span>Storage Literature Assumptions</span></div>
+          <table class="tbl">
+            <thead><tr><th>Zone</th><th>Optimal Temp</th><th>RH</th><th>Ethylene</th></tr></thead>
+            <tbody>
+              <tr><td><b>A · Leafy Greens</b></td><td>0–4 °C</td><td>95–100%</td><td>&lt; 1 ppm</td></tr>
+              <tr><td><b>B · Tomatoes</b></td><td>12–13 °C (&gt;10°C)</td><td>90–95%</td><td>&lt; 5 ppm</td></tr>
+              <tr><td><b>C · Bananas</b></td><td>13–14 °C (&gt;12°C)</td><td>85–95%</td><td>100–150 ppm*</td></tr>
+            </tbody>
+          </table>
+          <div style="font-size:10px;color:var(--m)">Typical post-harvest literature ranges used for simulation modeling (not measured prototype data). *100–150 ppm triggers ripening; storage hold keeps Zone C low unless ripening is desired.</div>
+        </div>
+      </div>
+    </div>
+    <div class="sim-foot">Simulation results. Not field data.</div>
+  </aside>
+</div>
+
+<div class="mwalk" aria-label="Touch Walk Controls">
+  <button id="mFwd" title="Hold to walk forward">▲</button>
+  <button id="mBwd" title="Hold to walk backward">▼</button>
+</div>
+<button id="cfgBtn" class="cfg-btn" title="Controls & Scenarios" aria-label="Settings">
+  <span class="cfg-dot"></span>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+</button>
+
+<!-- 2-Step Onboarding Modal -->
+<div id="ovl" class="ovl">
+  <div class="modal">
+    <div id="mStep1" class="mstep on">
+      <span class="mbadge">Physical AI Cold-Storage Digital Twin</span>
+      <h1>Welcome to FreshGuard 3D</h1>
+      <p>Compare a fair commercial <b>Tuned Thermostat</b> (left) against <b>FreshGuard AI</b> (right: noisy sensors → Kalman filter → online RLS learner → Model Predictive Control). Clear PVC curtains isolate gases &amp; mist across 3 zones while sharing overhead AC ducting:</p>
+      <div class="zcards">
+        <div class="zc za"><b>Zone A · Leafy Greens</b><span>0–4 °C, 95–100% RH via ultrasonic mist sprayers.</span></div>
+        <div class="zc zb"><b>Zone B · Tomatoes</b><span>12–13 °C (&gt;10°C), overhead exhaust hood purges ethylene.</span></div>
+        <div class="zc zc2"><b>Zone C · Bananas</b><span>13–14 °C (&gt;12°C), scheduled yellow grow lights &amp; gas manifold.</span></div>
+      </div>
+      <div class="ctrl-tips">
+        <span><b>Drag</b> 360° to look</span> ·
+        <span><b>W / S</b> or <b>▲ / ▼</b> to walk</span> ·
+        <span><b>Gas &amp; Thermal</b> overlays in sidebar</span>
+      </div>
+      <div class="mfoot">
+        <button id="btnNext" class="pbtn">Start Simulation →</button>
+      </div>
+    </div>
+    <div id="mStep2" class="mstep">
+      <span class="mbadge">Step 2 of 2 · Choose Starting Scenario</span>
+      <h1>Select a Test Scenario</h1>
+      <p>Both rooms start with identical deterministic seeds and fresh crates (88–99%). Switch scenarios or run the 20-seed Benchmark anytime.</p>
+      <div class="sc-grid" id="scGrid">
+        <button class="sc-opt sel" data-sc="0"><b>Standard Day</b><small>Diurnal 26–32°C weather, fresh load</small></button>
+        <button class="sc-opt" data-sc="1"><b>Hot Day (+8°C)</b><small>24h heatwave (AI pre-cools)</small></button>
+        <button class="sc-opt" data-sc="2"><b>Power Cut (10h)</b><small>Unannounced outage, emergency red lights</small></button>
+        <button class="sc-opt" data-sc="5"><b>Dry Spell (12h)</b><small>Low RH tests Zone A misting</small></button>
+        <button class="sc-opt" data-sc="6"><b>Ethylene Surge</b><small>Ripening gas spike in Zone B/C</small></button>
+        <button class="sc-opt" data-sc="8"><b>Sensor Fault</b><small>Stuck Zone B sensor tests Kalman fallback</small></button>
+        <button class="sc-opt" data-sc="7"><b>Mandi Crisis</b><small>36h heatwave + 8h power cut</small></button>
+        <button class="sc-opt" data-sc="9"><b>Forecasted Cut</b><small>Predicted outage lets AI pre-chill mass</small></button>
+      </div>
+      <div class="mfoot">
+        <button id="btnBack" class="sbtn">← Back</button>
+        <button id="btnLaunch" class="pbtn">Launch Simulation</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Full Benchmark Report Modal -->
+<div id="bmOvl" class="ovl hide">
+  <div class="modal bm-modal">
+    <div class="shdr">
+      <b>Paired Headless Benchmark Report (7 Simulated Days)</b>
+      <button id="bmClose" style="background:transparent;border:none;color:var(--m);font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="tbl" id="bmTable">
+        <thead><tr><th>Scenario</th><th>Spoiled kg (B→AI)</th><th>Energy kWh</th><th>Peak kW</th><th>Opt Band %</th><th>Day-7 Fresh</th><th>+Shelf d</th><th>CO₂ kg</th><th>Net Saved ₹ (95% CI)</th></tr></thead>
+        <tbody id="bmBody"><tr><td colspan="9" style="color:var(--m)">Click "Run All 9" in the Bench tab to compute paired results.</td></tr></tbody>
+      </table>
+    </div>
+    <div style="font-size:10px;color:#7389a1;text-align:center">Simulation results. Not field data. Rows highlighted in red indicate scenarios where AI did not beat the selected baseline.</div>
+  </div>
+</div>
+
+<div id="errToast" class="err-toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+/* ============================================================================
+   MODULE 1: CONFIG — All physical, economic & control constants with units
+   ============================================================================ */
+const CONFIG = {
+  NX: 22,                 // Grid cells along room length (1 cell ≈ 1.0 m)
+  NY: 10,                 // Grid cells across room width (1 cell ≈ 0.58 m)
+  DT: 0.25,               // Fixed simulation step in hours (0.25 h = 15 min)
+  SPOIL_THRESH: 0.15,     // Freshness fraction below which a crate is spoiled [0..1]
+  CRATE_KG: 10,           // Produce mass per crate [kg] (36 crates = 360 kg/room)
+  PRICE_INR_KG: 30,       // Assumed wholesale produce value [INR/kg] (range: 15-80)
+  TARIFF_OFF: 6.5,        // Off-peak electricity tariff 22:00-06:00 [INR/kWh]
+  TARIFF_MID: 8.0,        // Standard electricity tariff 06:00-18:00 [INR/kWh]
+  TARIFF_PEAK: 10.5,      // Evening peak electricity tariff 18:00-22:00 [INR/kWh]
+  CO2_KG_KWH: 0.82,       // India grid emission factor [kg CO2 / kWh] (CEA baseline)
+  /* Thermal & refrigeration dynamics */
+  WALL_UA: 0.0024,        // Insulated PUF wall heat-leak coefficient [1/step] (range: 0.001-0.005)
+  MASS_COUPLE: 0.16,      // Air-to-thermal-mass (crates+floor) heat exchange [1/step]
+  MASS_INERTIA: 0.055,    // Thermal mass temperature response rate [1/step]
+  COMP_LAG: 0.45,         // Compressor first-order ramp rate [1/step] (~30 min thermal inertia)
+  COMP_MIN_OFF_H: 0.5,    // Compressor short-cycle protection min off-time [h]
+  DEFROST_INT_H: 8.0,     // Evaporator defrost cycle interval [h] (typical: 6-12 h)
+  DEFROST_DUR_H: 0.5,     // Defrost duration [h] (20-30 min)
+  DEFROST_EFF: 0.35,      // Cooling efficiency multiplier during defrost [0..1]
+  DOOR_INFILT: 0.24,      // Open-door warm air infiltration factor [1/step]
+  /* Power ratings [kW] */
+  KW_COMP_FIXED: 2.8,     // Fixed-speed compressor draw [kW]
+  KW_COMP_INV: 2.35,      // Variable-speed inverter compressor max draw [kW]
+  KW_FAN: 0.35,           // Circulation fans at 100% [kW]
+  KW_VENT: 0.22,          // Zone B exhaust hood [kW]
+  KW_MIST: 0.14,          // Zone A ultrasonic mist pump [kW]
+  KW_LIGHT: 0.45,         // Overhead + Zone C grow lighting at 100% [kW]
+  /* Literature-range storage targets (Simulation assumptions, not field measurements) */
+  ZONES: [
+    { id:0, code:"A", name:"Leafy Greens", tMin:0,  tMax:4,  rhMin:95, rhMax:100, ppmMax:2,   chillT:0,  rBase:1/380 },
+    { id:1, code:"B", name:"Tomatoes",     tMin:12, tMax:13, rhMin:90, rhMax:95,  ppmMax:5,   chillT:10, rBase:1/440 },
+    { id:2, code:"C", name:"Bananas",      tMin:13, tMax:14, rhMin:85, rhMax:95,  ppmMax:12,  chillT:12, rBase:1/420 }
+  ],
+  /* Safety hard interlocks */
+  SAFE_T_MIN: 1.5,        // Absolute minimum setpoint [°C] (prevent freezing produce)
+  SAFE_T_MAX: 15.0,       // Absolute maximum setpoint [°C]
+  SAFE_PPM_CAP: 150.0,    // Hard ethylene cap [ppm] (explosive/over-ripening limit)
+  WATCHDOG_H: 1.0,        // Revert to safe defaults if zone sensors lost > 1.0 h
+  /* Sensor noise & Sim-to-Real gap */
+  SENS_T_SIGMA: 0.3,      // Temperature sensor noise std dev [°C] (SHT31/DHT22)
+  SENS_T_RES: 0.1,        // Temperature quantization step [°C]
+  SENS_RH_SIGMA: 2.0,     // Humidity sensor noise std dev [% RH]
+  SENS_RH_LAG: 0.55,      // Humidity first-order lag [1/step]
+  SENS_GAS_REL: 0.08,     // Gas sensor relative noise (8% MQ-style proxy)
+  SENS_GAS_FLOOR: 0.8,    // Gas sensor noise floor [ppm]
+  SENS_DROP_P: 0.005,     // Random sample dropout probability per step [0.5%]
+  /* Crate layout: 36 crates across 3 isolated bays */
+  CRATES: (() => {
+    const arr = [];
+    for (let s = 0; s < 2; s++)
+      for (let l = 0; l < 3; l++)
+        for (let c = 0; c < 6; c++)
+          arr.push({ gx: 4 + 3 * c, gy: s ? 7 : 1, s, l, c, z: c < 2 ? 0 : c < 4 ? 1 : 2, n: (c < 2 ? "A" : c < 4 ? "B" : "C") + "-" + (s + 1) + "L" + (l + 1) });
+    return arr;
+  })()
+};
+
+function getTariff(hourOfDay) {
+  const h = ((hourOfDay % 24) + 24) % 24;
+  if (h >= 18 && h < 22) return CONFIG.TARIFF_PEAK;
+  if (h >= 22 || h < 6) return CONFIG.TARIFF_OFF;
+  return CONFIG.TARIFF_MID;
+}
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const safeNum = (v, fb = 0) => (Number.isFinite(v) ? v : fb);
+const ix = (x, y) => y * CONFIG.NX + x;
+
+/* ============================================================================
+   MODULE 2: RNG — Deterministic per-run seeded PRNG (Mulberry32)
+   ============================================================================ */
+class SeededRNG {
+  constructor(seed) { this.s = (seed >>> 0) || 1; }
+  next() {
+    let t = (this.s += 0x6D2B79F5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  gauss() {
+    const u1 = Math.max(1e-9, this.next()), u2 = this.next();
+    return Math.sqrt(-2 * Math.log(u1)) * Math.cos(6.2831853 * u2);
+  }
+}
+
+/* ============================================================================
+   MODULE 3: PhysicsCore — Headless 2D thermal/gas/RH/spoilage engine
+   (Zero DOM, Zero THREE — runnable thousands of times in benchmarks)
+   ============================================================================ */
+function createEnv(scenarioCode = 0) {
+  const E = {
+    t: 8.0, hot: 0, cut: 0, cutStart: -1, cutAnnounced: false, door: 0, dry: 0,
+    sensorFault: false, scenario: scenarioCode,
+    Tout(t = this.t) {
+      const base = 26 + 6 * Math.sin(6.2831853 * (((t % 24) - 9) / 24));
+      return base + (t < this.hot ? 8.0 : 0);
+    },
+    isPowerOn(t = this.t) { return !(t >= this.cutStart && t < this.cut); },
+    forecast(tFuture) {
+      // Forecast knows diurnal curve + announced heatwave + announced power cut
+      const T = this.Tout(tFuture);
+      const cutPred = this.cutAnnounced && (tFuture >= this.cutStart && tFuture < this.cut);
+      return { Tout: T, cutPred };
+    }
+  };
+  applyScenarioToEnv(E, null, scenarioCode);
+  return E;
+}
+
+function applyScenarioToEnv(E, rooms, code) {
+  E.scenario = code;
+  if (code === 1) { E.hot = E.t + 24; }
+  else if (code === 2) { E.cutStart = E.t; E.cut = E.t + 10; E.cutAnnounced = false; }
+  else if (code === 3) { E.door = E.t + 3; }
+  else if (code === 4 && rooms) {
+    rooms.forEach(rm => {
+      for (let i = 0; i < rm.T.length; i++) rm.T[i] = Math.min(30, rm.T[i] + 6);
+      [2, 14, 27].forEach(k => { rm.F[k] = Math.min(rm.F[k], 0.48); });
+    });
+  }
+  else if (code === 5) { E.dry = E.t + 12; }
+  else if (code === 6 && rooms) {
+    rooms.forEach(rm => {
+      for (let y = 0; y < CONFIG.NY; y++)
+        for (let x = 8; x < CONFIG.NX; x++) rm.G[ix(x, y)] = Math.min(145, rm.G[ix(x, y)] + 48);
+    });
+  }
+  else if (code === 7) { E.hot = E.t + 36; E.cutStart = E.t + 6; E.cut = E.t + 14; E.cutAnnounced = true; }
+  else if (code === 8) { E.sensorFault = true; }
+  else if (code === 9) { E.cutStart = E.t + 4; E.cut = E.t + 14; E.cutAnnounced = true; }
+}
+
+/* True hidden biological spoilage rate (deliberately richer than the AI's RLS model) */
+function trueSpoilageRate(T, RH, ppm, light, zIdx, crateVar, curF) {
+  const Z = CONFIG.ZONES[zIdx];
+  const tOpt = 0.5 * (Z.tMin + Z.tMax);
+  // Hidden ripeness-dependent sensitivity: older produce degrades faster
+  const ageMul = 1.0 + 0.35 * Math.pow(clamp(1 - curF, 0, 1), 1.4);
+  // Q10 thermal factor + non-linear chilling injury below chillT
+  let fT = Math.pow(2.45, (T - tOpt) / 10);
+  if (T < Z.chillT) fT += 0.38 * Math.pow(Z.chillT - T, 1.18);
+  // Humidity stress + hidden T*lowRH interaction
+  const rhDef = Math.max(0, Z.rhMin - RH);
+  const fRH = 1 + (rhDef / (zIdx === 0 ? 15 : 26)) * (1 + 0.025 * Math.max(0, T - 8));
+  // Ethylene effect in real ppm + autocatalytic climacteric sensitivity
+  const gEff = zIdx === 0 ? (ppm / 4.5) : zIdx === 1 ? (ppm / 14) : (ppm / 28);
+  const fGas = 1 + 1.45 * Math.log1p(Math.max(0, gEff)) * (1 + 0.03 * Math.max(0, T - 10));
+  // Light sensitivity (strongest for Zone C bananas)
+  const fLight = 1 + (zIdx === 2 ? 0.28 : 0.07) * clamp(light, 0, 1);
+  return Math.max(1e-6, Z.rBase * 0.42 * fT * fRH * fGas * fLight * crateVar * ageMul);
+}
+
+class RoomSim {
+  constructor(seed, F0, crateVars) {
+    this.rng = new SeededRNG(seed);
+    this.T = new Float32Array(CONFIG.NX * CONFIG.NY).fill(15.0);
+    this.G = new Float32Array(CONFIG.NX * CONFIG.NY).fill(1.5); // ethylene in ppm
+    this.Tmass = [15.0, 15.0, 15.0]; // thermal mass (crates + floor) per zone [°C]
+    this.RH = [91, 90, 88];          // per-zone relative humidity [%]
+    this.F = Float32Array.from(F0);
+    this.crateVars = crateVars;
+    /* Actuator physical states (with lag) */
+    this.compCmd = false;
+    this.compLevel = 0;              // actual lagged compressor output [0..1]
+    this.lastCompOffT = -10;
+    this.setpoint = 8.0;
+    this.dampers = [0.7, 0.7, 0.7];  // actual damper openings [0..1]
+    this.fan = 0.35;
+    this.vent = 0;
+    this.mist = 0;
+    this.gasRel = 0;                 // 0..1 manifold valve
+    this.light = 0.5;                // Zone C grow light level 0..1
+    this.defrost = false;
+    /* Cumulative metrics */
+    this.kwh = 0;
+    this.energyCost = 0;
+    this.peakKw = 0;
+    this.curKw = 0;
+    this.optSteps = [0, 0, 0];
+    this.totalSteps = 0;
+    this.Ta = 15.0;
+    this.zoneT = [15.0, 15.0, 15.0];
+    this.zoneG = [1.5, 1.5, 1.5];
+    this.status = "Initializing";
+    this.cmdQueue = [];              // optional Sim-to-Real latency buffer
+  }
+  getZoneAvg(arr, zIdx) {
+    const x0 = zIdx === 0 ? 0 : zIdx === 1 ? 8 : 14;
+    const x1 = zIdx === 0 ? 8 : zIdx === 1 ? 14 : CONFIG.NX;
+    let s = 0, n = 0;
+    for (let y = 0; y < CONFIG.NY; y++) for (let x = x0; x < x1; x++) { s += arr[ix(x, y)]; n++; }
+    return n ? s / n : 0;
+  }
+  crateLoc(arr, c) {
+    return 0.25 * (arr[ix(c.gx, c.gy)] + arr[ix(c.gx + 1, c.gy)] + arr[ix(c.gx, c.gy + 1)] + arr[ix(c.gx + 1, c.gy + 1)]);
+  }
+  diffuse(src, k, isolateCurtains) {
+    const NX = CONFIG.NX, NY = CONFIG.NY, out = new Float32Array(NX * NY);
+    for (let y = 0; y < NY; y++) {
+      for (let x = 0; x < NX; x++) {
+        const i = y * NX + x, a = src[i];
+        const lX = x > 0 ? x - 1 : 0, rX = x < NX - 1 ? x + 1 : NX - 1;
+        const uY = y > 0 ? y - 1 : 0, dY = y < NY - 1 ? y + 1 : NY - 1;
+        // PVC curtains at x=8 and x=14 block 93% of gas diffusion and 72% of cross-zone thermal mixing
+        const isWallL = (x === 8 || x === 14), isWallR = (x === 7 || x === 13);
+        const wL = isWallL ? (isolateCurtains ? 0.07 : 0.28) : 1.0;
+        const wR = isWallR ? (isolateCurtains ? 0.07 : 0.28) : 1.0;
+        out[i] = a + k * (wL * (src[y * NX + lX] - a) + wR * (src[y * NX + rX] - a) + (src[uY * NX + x] - a) + (src[dY * NX + x] - a));
+      }
+    }
+    return out;
+  }
+  step(E, rawCmd, simGap, isInverter) {
+    // Optional Sim-to-Real command latency (1-step delay when enabled)
+    let cmd = rawCmd;
+    if (simGap) {
+      this.cmdQueue.push(rawCmd);
+      cmd = this.cmdQueue.length > 1 ? this.cmdQueue.shift() : rawCmd;
+    } else {
+      this.cmdQueue.length = 0;
+    }
+    const pw = E.isPowerOn(E.t), door = E.t < E.door, dry = E.t < E.dry, To = E.Tout(E.t);
+    // Defrost cycle: brief efficiency dip every DEFROST_INT_H hours
+    this.defrost = pw && ((E.t % CONFIG.DEFROST_INT_H) < CONFIG.DEFROST_DUR_H);
+    // Apply actuators with physical lag
+    const damLag = simGap ? 0.55 : 0.85;
+    for (let z = 0; z < 3; z++) {
+      const tgtD = clamp(safeNum(cmd.dampers ? cmd.dampers[z] : 0.7, 0.7), 0.0, 1.0);
+      this.dampers[z] += (tgtD - this.dampers[z]) * damLag;
+    }
+    this.setpoint = clamp(safeNum(cmd.setpoint, 8), CONFIG.SAFE_T_MIN, CONFIG.SAFE_T_MAX);
+    this.fan = pw ? clamp(safeNum(cmd.fan, 0.35), 0.15, 1.0) : 0;
+    this.vent = pw ? clamp(safeNum(cmd.vent, 0), 0, 1) : 0;
+    this.mist = pw ? clamp(safeNum(cmd.mist, 0), 0, 1) : 0;
+    this.gasRel = pw ? clamp(safeNum(cmd.gasRel, 0), 0, 1) : 0;
+    this.light = pw ? clamp(safeNum(cmd.light, 0.4), 0, 1) : 0;
+    this.status = cmd.status || "";
+
+    // Compressor hysteresis + short-cycle protection
+    const wantComp = pw && !!cmd.compOn;
+    if (wantComp && !this.compCmd && (E.t - this.lastCompOffT) >= CONFIG.COMP_MIN_OFF_H) this.compCmd = true;
+    else if (!wantComp && this.compCmd) { this.compCmd = false; this.lastCompOffT = E.t; }
+    if (!pw) { this.compCmd = false; }
+    const targetComp = this.compCmd ? (this.defrost ? CONFIG.DEFROST_EFF : 1.0) : 0.0;
+    this.compLevel += (targetComp - this.compLevel) * CONFIG.COMP_LAG;
+
+    // Diffuse air temp & isolated gas field
+    const kd = 0.045 + 0.16 * this.fan;
+    const nT = this.diffuse(this.T, kd, false);
+    const nG = this.diffuse(this.G, kd, true);
+
+    // Wall heat leakage + natural gas decay
+    for (let i = 0; i < nT.length; i++) {
+      nT[i] += (To - nT[i]) * CONFIG.WALL_UA;
+      nG[i] = Math.max(0.2, nG[i] * 0.996);
+    }
+
+    // Shared overhead AC duct cools each zone proportional to its damper opening
+    if (this.compLevel > 0.02) {
+      const Tsupply = clamp(this.setpoint - 5.5, -1.0, 11.0);
+      for (let y = 0; y < CONFIG.NY; y++) {
+        for (let x = 0; x < CONFIG.NX; x++) {
+          const z = x < 8 ? 0 : x < 14 ? 1 : 2;
+          const ductFactor = (z === 0 ? 0.34 : z === 1 ? 0.24 : 0.20) * this.dampers[z] * this.compLevel;
+          const i = ix(x, y);
+          nT[i] += (Tsupply - nT[i]) * ductFactor;
+        }
+      }
+    }
+
+    // Thermal mass exchange (crates & concrete floor buffer temperature swings)
+    for (let z = 0; z < 3; z++) {
+      const zAir = this.getZoneAvg(nT, z);
+      this.Tmass[z] += (zAir - this.Tmass[z]) * CONFIG.MASS_INERTIA;
+      const x0 = z === 0 ? 0 : z === 1 ? 8 : 14, x1 = z === 0 ? 8 : z === 1 ? 14 : CONFIG.NX;
+      for (let y = 0; y < CONFIG.NY; y++)
+        for (let x = x0; x < x1; x++) nT[ix(x, y)] += (this.Tmass[z] - nT[ix(x, y)]) * CONFIG.MASS_COUPLE;
+    }
+
+    // Door infiltration at x = NX-1
+    if (door) {
+      for (let y = 2; y <= 7; y++) {
+        const i = ix(CONFIG.NX - 1, y);
+        nT[i] += (To - nT[i]) * CONFIG.DOOR_INFILT;
+        nG[i] *= 0.72;
+      }
+    }
+
+    // Zone B exhaust hood purges Zone B (x=8..13) ethylene
+    if (this.vent > 0.01) {
+      for (let y = 0; y < CONFIG.NY; y++)
+        for (let x = 8; x < 14; x++) {
+          const i = ix(x, y);
+          nG[i] *= (1 - 0.32 * this.vent);
+          nT[i] += (To - nT[i]) * 0.005 * this.vent;
+        }
+    }
+
+    // Zone C gas releaser doses ethylene inside Zone C (x=14..21), capped at SAFE_PPM_CAP
+    if (this.gasRel > 0.01) {
+      for (let y = 0; y < CONFIG.NY; y++)
+        for (let x = 14; x < CONFIG.NX; x++) {
+          const i = ix(x, y);
+          nG[i] = Math.min(CONFIG.SAFE_PPM_CAP, nG[i] + 5.5 * this.gasRel);
+        }
+    }
+
+    // Zone RH dynamics (coil dehumidifies, Zone A mist humidifies, dry spell drops RH)
+    for (let z = 0; z < 3; z++) {
+      const zT = this.getZoneAvg(nT, z);
+      const dryDrop = dry ? (z === 0 ? 18 : 14) : 0;
+      const mistBoost = z === 0 ? 11 * this.mist : 0;
+      const ventDrop = z === 1 ? 3 * this.vent : 0;
+      const eqRH = clamp(94 - 7.5 * this.compLevel * this.dampers[z] - 0.45 * Math.max(0, zT - 10) - dryDrop - ventDrop + mistBoost, 42, 99);
+      this.RH[z] += (eqRH - this.RH[z]) * 0.16;
+    }
+
+    // Biological crate respiration (heat + autocatalytic ethylene) & spoilage update
+    for (let k = 0; k < CONFIG.CRATES.length; k++) {
+      const c = CONFIG.CRATES[k], f = this.F[k];
+      const cT = this.crateLoc(nT, c) + (c.l - 1) * 0.35;
+      const cG = this.crateLoc(nG, c);
+      const cRH = this.RH[c.z];
+      const cLt = c.z === 2 ? this.light : 0.25 * this.light;
+      if (f >= CONFIG.SPOIL_THRESH) {
+        const rate = trueSpoilageRate(cT, cRH, cG, cLt, c.z, this.crateVars[k], f);
+        this.F[k] = Math.max(0, f - rate * CONFIG.DT);
+      }
+      // Respiration heat + climacteric ethylene emission (monotonic)
+      const resp = 1.25 - this.F[k];
+      const gEmit = (c.z === 2 ? 0.52 : c.z === 1 ? 0.34 : 0.08) * resp;
+      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
+        const i = ix(c.gx + dx, c.gy + dy);
+        nT[i] += 0.002 * resp;
+        nG[i] = Math.min(CONFIG.SAFE_PPM_CAP, nG[i] + gEmit);
+      }
+    }
+
+    this.T = nT; this.G = nG;
+    let sumT = 0;
+    for (let z = 0; z < 3; z++) {
+      this.zoneT[z] = safeNum(this.getZoneAvg(nT, z), 12);
+      this.zoneG[z] = safeNum(this.getZoneAvg(nG, z), 1);
+      sumT += this.zoneT[z];
+      const Z = CONFIG.ZONES[z];
+      if (this.zoneT[z] >= Z.tMin - 1 && this.zoneT[z] <= Z.tMax + 1.5 && this.RH[z] >= Z.rhMin - 3) this.optSteps[z]++;
+    }
+    this.Ta = sumT / 3;
+    this.totalSteps++;
+
+    // Power & energy accounting (strictly non-negative)
+    const damLoad = (this.dampers[0] + this.dampers[1] + this.dampers[2]) / 3;
+    const compKw = this.compLevel * (isInverter ? CONFIG.KW_COMP_INV * (0.42 + 0.58 * damLoad) : CONFIG.KW_COMP_FIXED);
+    this.curKw = Math.max(0, compKw + CONFIG.KW_FAN * this.fan + CONFIG.KW_VENT * this.vent + CONFIG.KW_MIST * this.mist + CONFIG.KW_LIGHT * this.light);
+    if (this.curKw > this.peakKw) this.peakKw = this.curKw;
+    const dKwh = this.curKw * CONFIG.DT;
+    this.kwh += dKwh;
+    this.energyCost += dKwh * getTariff(E.t);
+  }
+  spoiledCount() { let n = 0; for (let i = 0; i < this.F.length; i++) if (this.F[i] < CONFIG.SPOIL_THRESH) n++; return n; }
+  avgFreshness() { let s = 0; for (let i = 0; i < this.F.length; i++) s += Math.max(0, this.F[i]); return s / this.F.length; }
+}
+
+/* ============================================================================
+   MODULE 4: Sensors — Noisy, drifting, quantized, fault-prone perception
+   ============================================================================ */
+class SensorSuite {
+  constructor(seed) {
+    this.rng = new SeededRNG(seed ^ 0x51a9c3);
+    this.driftT = [0, 0, 0];
+    this.driftG = [0, 0, 0];
+    this.rhLag = [90, 90, 88];
+    this.lastValidT = [15, 15, 15];
+    this.faultStuckT = 12.2;
+  }
+  sample(room, E, simGap) {
+    const mul = simGap ? 1.35 : 0.75;
+    const zones = [];
+    for (let z = 0; z < 3; z++) {
+      this.driftT[z] = clamp(this.driftT[z] + this.rng.gauss() * 0.004 * mul, -0.6, 0.6);
+      this.driftG[z] = clamp(this.driftG[z] + this.rng.gauss() * 0.03 * mul, -2.5, 4.0);
+      this.rhLag[z] += (room.RH[z] - this.rhLag[z]) * CONFIG.SENS_RH_LAG;
+      const tTrue = room.zoneT[z], rhTrue = this.rhLag[z], gTrue = room.zoneG[z];
+      const drop = () => this.rng.next() < (CONFIG.SENS_DROP_P * (simGap ? 1.5 : 0.6));
+      // Primary & redundant SHT31 temperature sensors
+      let t1 = drop() ? NaN : Math.round((tTrue + this.driftT[z] + this.rng.gauss() * CONFIG.SENS_T_SIGMA * mul) / CONFIG.SENS_T_RES) * CONFIG.SENS_T_RES;
+      let t2 = drop() ? NaN : Math.round((tTrue - this.driftT[z] * 0.5 + this.rng.gauss() * CONFIG.SENS_T_SIGMA * mul) / CONFIG.SENS_T_RES) * CONFIG.SENS_T_RES;
+      // Optional Sensor Fault scenario: Zone B primary sensor freezes flat & jumps +7°C
+      if (E.sensorFault && z === 1) t1 = this.faultStuckT + 7.5;
+      const rh = drop() ? NaN : clamp(Math.round(rhTrue + this.rng.gauss() * CONFIG.SENS_RH_SIGMA * mul), 20, 100);
+      // MQ gas proxy: strong RH cross-sensitivity + relative noise + drift
+      const rhCross = (rhTrue - 85) * 0.14;
+      const gas = drop() ? NaN : Math.max(0, +(gTrue + rhCross + this.driftG[z] + this.rng.gauss() * (CONFIG.SENS_GAS_FLOOR + gTrue * CONFIG.SENS_GAS_REL) * mul).toFixed(1));
+      zones.push({ z, t1, t2, rh, gas });
+    }
+    return {
+      t: E.t, powerOn: E.isPowerOn(E.t), doorOpen: E.t < E.door,
+      Tout: +(E.Tout(E.t) + this.rng.gauss() * 0.4).toFixed(1),
+      forecast: [2, 4, 6, 8].map(h => E.forecast(E.t + h)),
+      zones,
+      // Crate freshness proxy (noisy inspection/softness score for online RLS learning)
+      crateF: Array.from(room.F, f => clamp(f + this.rng.gauss() * 0.012, 0, 1))
+    };
+  }
+}
+
+/* ============================================================================
+   MODULE 5: Estimator — Per-zone Kalman Filter + Innovation-Gated Fault Detector
+   ============================================================================ */
+class ZoneEstimator {
+  constructor() {
+    this.T = [15, 15, 15];   this.pT = [1, 1, 1];
+    this.RH = [90, 90, 88];  this.pRH = [4, 4, 4];
+    this.G = [1.5, 1.5, 1.5];this.pG = [4, 4, 4];
+    this.lastT1 = [NaN, NaN, NaN];
+    this.flatCount = [0, 0, 0];
+    this.lostHours = [0, 0, 0];
+    this.suspect = [false, false, false];
+    this.anySuspect = false;
+    this.watchdogTripped = false;
+  }
+  update(obs) {
+    this.anySuspect = false;
+    this.watchdogTripped = false;
+    for (let z = 0; z < 3; z++) {
+      const s = obs.zones[z];
+      // Predict variance
+      this.pT[z] += 0.18; this.pRH[z] += 1.2; this.pG[z] += 1.5;
+      // Fault check on primary t1: NaN, out-of-range, flat-line, or innovation > 3.5°C
+      let t1Bad = !Number.isFinite(s.t1) || s.t1 < -5 || s.t1 > 45;
+      if (!t1Bad && Math.abs(s.t1 - this.lastT1[z]) < 1e-4) this.flatCount[z]++; else this.flatCount[z] = 0;
+      this.lastT1[z] = s.t1;
+      if (this.flatCount[z] >= 4) t1Bad = true;
+      if (!t1Bad && Math.abs(s.t1 - this.T[z]) > 4.2 && Number.isFinite(s.t2) && Math.abs(s.t2 - this.T[z]) < 3.0) t1Bad = true;
+
+      this.suspect[z] = t1Bad;
+      if (t1Bad) this.anySuspect = true;
+
+      // Sensor fusion / fallback to redundant t2
+      const tMeas = !t1Bad ? (Number.isFinite(s.t2) ? 0.5 * (s.t1 + s.t2) : s.t1) : (Number.isFinite(s.t2) ? s.t2 : NaN);
+      if (Number.isFinite(tMeas)) {
+        const K = this.pT[z] / (this.pT[z] + 0.18);
+        this.T[z] += K * (tMeas - this.T[z]);
+        this.pT[z] *= (1 - K);
+        this.lostHours[z] = 0;
+      } else {
+        this.lostHours[z] += CONFIG.DT;
+      }
+      if (this.lostHours[z] >= CONFIG.WATCHDOG_H) this.watchdogTripped = true;
+
+      if (Number.isFinite(s.rh) && s.rh >= 20 && s.rh <= 100) {
+        const K = this.pRH[z] / (this.pRH[z] + 4.0);
+        this.RH[z] += K * (s.rh - this.RH[z]);
+        this.pRH[z] *= (1 - K);
+      }
+      if (Number.isFinite(s.gas) && s.gas >= 0 && s.gas <= 200) {
+        // Compensate approximate RH cross-sensitivity in estimator
+        const gClean = Math.max(0, s.gas - (this.RH[z] - 85) * 0.12);
+        const K = this.pG[z] / (this.pG[z] + 4.5);
+        this.G[z] += K * (gClean - this.G[z]);
+        this.pG[z] *= (1 - K);
+      }
+    }
+    return { T: this.T.slice(), RH: this.RH.slice(), G: this.G.slice(), suspect: this.suspect.slice(), anySuspect: this.anySuspect, watchdog: this.watchdogTripped };
+  }
+}
+
+/* ============================================================================
+   MODULE 6: Controllers — Pure decide(obs, state, cfg) for Baselines + AI MPC
+   (Zero DOM, Zero THREE — exportable directly as standalone controller.js)
+   ============================================================================ */
+function makeCtrlState(mode, userSetpoint = 8) {
+  const rls = [0, 1, 2].map(z => {
+    const Z = CONFIG.ZONES[z], tOpt = 0.5 * (Z.tMin + Z.tMax) / 10;
+    // 6-feature quadratic basis on log-rate: [1, T/10, (T/10)^2, RH/100, log1p(ppm)/5, light]
+    return {
+      w: [Math.log(Z.rBase * 0.48) + 0.55 * tOpt * tOpt, -1.1 * tOpt, 0.55, -0.35, 0.42, z === 2 ? 0.22 : 0.05],
+      P: [0.35, 0.35, 0.35, 0.35, 0.35, 0.35],
+      mape: 0.24,
+      nObs: 0
+    };
+  });
+  return {
+    mode, userSetpoint,
+    est: new ZoneEstimator(),
+    rls,
+    lastF: null,
+    compOn: false,
+    lastOffT: -10,
+    safetyOverride: false,
+    whyLog: [],
+    shadowCmd: null,
+    shadowPredSav: 0
+  };
+}
+
+function rlsFeatures(T, RH, ppm, light) {
+  const tn = T / 10;
+  return [1, tn, tn * tn, RH / 100, Math.log1p(Math.max(0, ppm)) / 5, light];
+}
+function rlsPredict(w, T, RH, ppm, light) {
+  const x = rlsFeatures(T, RH, ppm, light);
+  let y = 0; for (let i = 0; i < 6; i++) y += w[i] * x[i];
+  return Math.exp(clamp(y, -10, -2.5));
+}
+
+function updateOnlineLearner(state, estState, obs, lastLight) {
+  if (!state.lastF) { state.lastF = obs.crateF.slice(); return; }
+  for (let z = 0; z < 3; z++) {
+    let dfSum = 0, cnt = 0;
+    for (let k = 0; k < CONFIG.CRATES.length; k++) {
+      if (CONFIG.CRATES[k].z !== z) continue;
+      if (state.lastF[k] > CONFIG.SPOIL_THRESH + 0.04 && obs.crateF[k] < state.lastF[k]) {
+        dfSum += (state.lastF[k] - obs.crateF[k]) / CONFIG.DT;
+        cnt++;
+      }
+    }
+    if (cnt > 0) {
+      const obsRate = Math.max(1e-5, dfSum / cnt);
+      const R = state.rls[z];
+      const x = rlsFeatures(estState.T[z], estState.RH[z], estState.G[z], z === 2 ? lastLight : 0.2);
+      const predRate = rlsPredict(R.w, estState.T[z], estState.RH[z], estState.G[z], z === 2 ? lastLight : 0.2);
+      const relErr = clamp(Math.abs(predRate - obsRate) / obsRate, 0, 1.5);
+      R.mape = R.nObs < 4 ? (0.75 * R.mape + 0.25 * relErr) : (0.94 * R.mape + 0.06 * relErr);
+      R.nObs++;
+      // Diagonal RLS update (forgetting factor lambda = 0.992)
+      const y = Math.log(obsRate);
+      let yhat = 0, denom = 0.992;
+      for (let i = 0; i < 6; i++) { yhat += R.w[i] * x[i]; denom += R.P[i] * x[i] * x[i]; }
+      const err = clamp(y - yhat, -1.5, 1.5);
+      for (let i = 0; i < 6; i++) {
+        const gain = (R.P[i] * x[i]) / denom;
+        R.w[i] = clamp(R.w[i] + gain * err, -12, 6);
+        R.P[i] = clamp((R.P[i] - gain * x[i] * R.P[i]) / 0.992, 0.002, 2.0);
+      }
+    }
+  }
+  state.lastF = obs.crateF.slice();
+}
+
+function applySafetyInterlocks(cmd, state, estState, obs) {
+  let tripped = false;
+  if (estState.watchdog) {
+    tripped = true;
+    cmd = { compOn: true, setpoint: 8, dampers: [0.7, 0.7, 0.7], fan: 0.45, vent: 0.5, mist: 0.5, gasRel: 0, light: 0.25, status: "WATCHDOG: Safe Defaults" };
+  }
+  if (cmd.setpoint < CONFIG.SAFE_T_MIN || cmd.setpoint > CONFIG.SAFE_T_MAX) {
+    cmd.setpoint = clamp(cmd.setpoint, CONFIG.SAFE_T_MIN, CONFIG.SAFE_T_MAX); tripped = true;
+  }
+  if (estState.G[2] > CONFIG.SAFE_PPM_CAP * 0.85 && cmd.gasRel > 0) { cmd.gasRel = 0; tripped = true; }
+  if (cmd.compOn && !state.compOn && (obs.t - state.lastOffT) < CONFIG.COMP_MIN_OFF_H) { cmd.compOn = false; tripped = true; }
+  if (!cmd.compOn && state.compOn) state.lastOffT = obs.t;
+  state.compOn = !!cmd.compOn;
+  state.safetyOverride = tripped;
+  return cmd;
+}
+
+function decide(obs, state, cfg = CONFIG) {
+  const est = state.est.update(obs);
+  const hod = ((obs.t % 24) + 24) % 24;
+  const mode = state.mode;
+
+  /* 1. NAIVE LEGACY BASELINE (kept only for reference) */
+  if (mode === "naive") {
+    const sp = state.userSetpoint;
+    const compOn = est.T[1] > sp + 0.6 ? true : est.T[1] < sp - 0.6 ? false : state.compOn;
+    const cmd = { compOn, setpoint: sp, dampers: [0.7, 0.7, 0.7], fan: 0.25, vent: 0, mist: 0, gasRel: 1.0, light: 1.0, status: "Naive: grow lights & gas always ON" };
+    return applySafetyInterlocks(cmd, state, est, obs);
+  }
+
+  /* 2. TUNED THERMOSTAT (DEFAULT FAIR COMMERCIAL BASELINE) */
+  if (mode === "tuned") {
+    const sp = state.userSetpoint;
+    const avgT = (est.T[0] + est.T[1] + est.T[2]) / 3;
+    const compOn = avgT > sp + 0.7 ? true : avgT < sp - 0.7 ? false : state.compOn;
+    const light = (hod >= 8 && hod < 16) ? 0.55 : 0.0; // Sane 8h/16h commercial schedule
+    const gasRel = (hod >= 10 && hod < 11) ? 0.25 : 0.0; // Standard brief daily dose
+    const vent = (Math.floor(obs.t) % 6 === 0) ? 0.6 : 0.0; // Fixed timer exhaust
+    const mist = est.RH[0] < 88 ? 0.65 : 0.0; // Sensible fixed humidistat
+    const cmd = { compOn, setpoint: sp, dampers: [0.85, 0.65, 0.55], fan: 0.42, vent, mist, gasRel, light, status: "Tuned Thermostat · scheduled ops" };
+    return applySafetyInterlocks(cmd, state, est, obs);
+  }
+
+  /* 3. RULE-BASED EXPERT (Per-zone if-then, no learning/prediction) */
+  if (mode === "expert") {
+    const compOn = (est.T[0] > 4.5 || est.T[1] > 13.0 || est.T[2] > 14.2) ? true : (est.T[0] < 2.2 && est.T[1] < 11.8) ? false : state.compOn;
+    const dampers = [
+      est.T[0] > 3.5 ? 1.0 : 0.25,
+      est.T[1] > 12.6 ? 0.8 : (est.T[1] < 11.2 ? 0.15 : 0.45),
+      est.T[2] > 13.8 ? 0.75 : (est.T[2] < 12.6 ? 0.12 : 0.4)
+    ];
+    const mist = est.RH[0] < 94 ? 0.9 : 0.0;
+    const vent = est.G[1] > 4.5 ? 1.0 : 0.0;
+    const gasRel = (est.G[2] < 2.0 && hod >= 10 && hod < 11) ? 0.12 : 0.0;
+    const light = (hod >= 9 && hod < 13) ? 0.25 : 0.0;
+    const cmd = { compOn, setpoint: 7.5, dampers, fan: (est.T[1] > 13.5 ? 0.8 : 0.4), vent, mist, gasRel, light, status: "Expert Rules · fixed thresholds" };
+    return applySafetyInterlocks(cmd, state, est, obs);
+  }
+
+  /* 4. FRESHGUARD AI: Online RLS Learner + Rolling-Horizon MPC + Forecast Anticipation */
+  updateOnlineLearner(state, est, obs, state._lastLight || 0.15);
+  const heatAhead = obs.forecast.some(f => f.Tout > 33.5);
+  const cutAhead = obs.forecast.some(f => f.cutPred);
+
+  // Smart per-zone damper allocator: prevents chilling injury in Zone B (>10°C) & Zone C (>12°C) while cooling Zone A (0-4°C)
+  const calcDampers = (Tarr, biasA, biasBC) => [
+    clamp((Tarr[0] - 1.8) / 3.5 + biasA, 0.0, 1.0),
+    Tarr[1] < 11.4 ? 0.0 : clamp((Tarr[1] - 11.8) / 2.2 + biasBC, 0.0, 0.9),
+    Tarr[2] < 12.6 ? 0.0 : clamp((Tarr[2] - 13.0) / 2.2 + biasBC, 0.0, 0.85)
+  ];
+  const needVent = est.G[1] > 2.2 ? clamp((est.G[1] - 1.5) / 4.0, 0.4, 1.0) : 0;
+  const needMist = est.RH[0] < 96 ? clamp((97 - est.RH[0]) / 7.0, 0.4, 1.0) : 0;
+
+  // Rolling-horizon MPC (8h horizon in 4 macro-steps of 2h) over candidate strategies
+  const candidates = [
+    { name: "Eco Coast",    sp: 6.5, comp: false, bA: 0.0,  bBC: 0.0,  fan: 0.22, vent: needVent, mist: needMist, light: 0.04 },
+    { name: "Balanced MPC", sp: 6.5, comp: true,  bA: 0.15, bBC: 0.05, fan: 0.42, vent: needVent, mist: needMist, light: 0.04 },
+    { name: "Zone-A Focus", sp: 5.0, comp: true,  bA: 0.35, bBC: -0.1, fan: 0.48, vent: needVent, mist: 1.0,      light: 0.04 },
+    { name: "Pre-Chill",    sp: 4.5, comp: true,  bA: 0.40, bBC: 0.15, fan: 0.65, vent: needVent, mist: 1.0,      light: 0.02 },
+    { name: "Peak Ride",    sp: 8.0, comp: false, bA: 0.0,  bBC: 0.0,  fan: 0.18, vent: 0,        mist: needMist, light: 0.00 }
+  ];
+
+  let bestJ = Infinity, bestC = candidates[0], baseJ = 0;
+  for (let ci = 0; ci < candidates.length; ci++) {
+    const c = candidates[ci];
+    let J = 0;
+    const simT = est.T.slice(), simRH = est.RH.slice(), simG = est.G.slice();
+    for (let h = 0; h < 4; h++) {
+      const fc = obs.forecast[h] || { Tout: obs.Tout, cutPred: false };
+      const tariff = getTariff(obs.t + (h + 1) * 2);
+      const pwOk = obs.powerOn && !fc.cutPred;
+      const compEff = (c.comp && pwOk) ? 1 : 0;
+      const Tsup = clamp(c.sp - 5.5, -1.0, 11.0);
+      const dStep = calcDampers(simT, c.bA, c.bBC);
+      for (let z = 0; z < 3; z++) {
+        const Z = cfg.ZONES[z];
+        // Lightweight internal thermal/RH/gas prediction step (2h macro-step)
+        simT[z] += (fc.Tout - simT[z]) * 0.04 + compEff * (Tsup - simT[z]) * (z === 0 ? 0.55 : z === 1 ? 0.38 : 0.32) * dStep[z];
+        simRH[z] = clamp(simRH[z] + ((z === 0 ? 9 * c.mist : 0) - 5 * compEff * dStep[z] - (fc.Tout > 33 ? 2.5 : 0)) * 0.4, 45, 99);
+        simG[z] = Math.max(0.2, simG[z] * (z === 1 && c.vent > 0 ? 0.35 : 0.94) + (z === 2 ? 1.4 : z === 1 ? 0.9 : 0.2));
+        // Learned RLS spoilage cost (12 crates/zone * 10 kg * price)
+        const rPred = rlsPredict(state.rls[z].w, simT[z], simRH[z], simG[z], z === 2 ? c.light : 0.05);
+        J += rPred * 2.0 * 12 * cfg.CRATE_KG * cfg.PRICE_INR_KG;
+        // Constraint penalties: chilling injury, overheating, low RH, high gas
+        if (simT[z] < Z.chillT + 0.5) J += (Z.chillT + 0.5 - simT[z]) * 65;
+        if (simT[z] > Z.tMax + 1.2) J += (simT[z] - Z.tMax - 1.2) * 18;
+        if (simRH[z] < Z.rhMin - 1.5) J += (Z.rhMin - 1.5 - simRH[z]) * (z === 0 ? 6.0 : 1.5);
+        if (simG[z] > Z.ppmMax) J += (simG[z] - Z.ppmMax) * (z === 1 ? 4.5 : 2.0);
+      }
+      const kw = compEff * cfg.KW_COMP_INV + cfg.KW_FAN * c.fan + cfg.KW_VENT * c.vent + cfg.KW_MIST * c.mist + cfg.KW_LIGHT * c.light;
+      J += kw * 2.0 * tariff;
+    }
+    if (ci === 1) baseJ = J;
+    if (J < bestJ) { bestJ = J; bestC = c; }
+  }
+
+  // Anticipatory overrides during outages & door-open alarms
+  let reason = "";
+  let compOn = bestC.comp, sp = bestC.sp, dampers = calcDampers(est.T, bestC.bA, bestC.bBC), fan = bestC.fan, vent = bestC.vent, mist = bestC.mist, light = bestC.light, gasRel = 0;
+  if (!obs.powerOn) {
+    compOn = false; fan = 0; vent = 0; mist = 0; light = 0;
+    reason = "Power cut active: sealed fans/vents to retain thermal mass & alert owner";
+  } else if (cutAhead && est.T[0] > 2.5) {
+    compOn = true; sp = 4.5; dampers = calcDampers(est.T, 0.35, 0.12); fan = 0.65; mist = 1.0;
+    reason = "Forecasted power cut: pre-chilling thermal mass to ride through outage";
+  } else if (heatAhead && est.T[0] > 3.8) {
+    compOn = true; sp = 5.0; dampers = calcDampers(est.T, 0.30, 0.05); fan = 0.55; mist = 1.0;
+    reason = "Heatwave forecast: pre-cooling Zone A greens & buffering thermal mass";
+  } else if (obs.doorOpen) {
+    compOn = true; fan = 0.20; vent = 0;
+    reason = "Door open alarm: lowered fan speed to cut warm air infiltration";
+  } else if (vent > 0.5) {
+    reason = `MPC (${bestC.name}): purging Zone B ethylene (${est.G[1].toFixed(1)} ppm) & dimming Zone C`;
+  } else if (mist > 0.7 && est.RH[0] < 95) {
+    reason = `MPC (${bestC.name}): misting Zone A (RH ${est.RH[0].toFixed(0)}%) + dampers [${dampers.map(v => (v * 100 | 0) + "%").join("/")}]`;
+  } else {
+    reason = `MPC (${bestC.name}): holding ${sp.toFixed(1)}°C at ₹${getTariff(obs.t).toFixed(1)}/kWh tariff`;
+  }
+
+  const predSavInr = Math.max(0, baseJ - bestJ);
+  if (state.whyLog.length === 0 || state.whyLog[0].reason !== reason) {
+    state.whyLog.unshift({ t: obs.t, reason, impact: predSavInr });
+    if (state.whyLog.length > 5) state.whyLog.pop();
+  }
+  state._lastLight = light;
+  const cmd = { compOn, setpoint: sp, dampers, fan, vent, mist, gasRel, light, status: bestC.name + (cutAhead ? " · Pre-chill" : heatAhead ? " · Heat guard" : "") };
+  return applySafetyInterlocks(cmd, state, est, obs);
+}
+
+/* ============================================================================
+   MODULE 7: HardwareBridge — SimBridge, MockHardwareBridge (MQTT JSON) & Export
+   ============================================================================ */
+class SimBridge {
+  constructor(room, sensors) { this.room = room; this.sensors = sensors; }
+  read(E, simGap) { return this.sensors.sample(this.room, E, simGap); }
+  write(E, cmd, simGap, isInv) { this.room.step(E, cmd, simGap, isInv); }
+}
+
+class MockHardwareBridge {
+  constructor(site = "ludhiana_pilot_01") { this.site = site; this.messages = []; }
+  emit(obs, cmd) {
+    const z = obs.zones[1]; // sample Zone B telemetry + command frame
+    const sTopic = `freshguard/${this.site}/zone_b/sensors`;
+    const cTopic = `freshguard/${this.site}/zone_b/cmd`;
+    const sPay = { ts_h: +obs.t.toFixed(2), t1_c: z.t1, t2_c: z.t2, rh_pct: z.rh, gas_ppm: z.gas, door: obs.doorOpen ? 1 : 0 };
+    const cPay = { sp_c: +cmd.setpoint.toFixed(1), comp: cmd.compOn ? 1 : 0, damp_pct: cmd.dampers.map(v => Math.round(v * 100)), vent: +(cmd.vent || 0).toFixed(2), mist: +(cmd.mist || 0).toFixed(2) };
+    this.messages.unshift(`${sTopic} ${JSON.stringify(sPay)}\n${cTopic} ${JSON.stringify(cPay)}`);
+    if (this.messages.length > 6) this.messages.pop();
+  }
+  /* Optional Web Serial / WebSocket bridge stub (disabled by default for sandbox safety):
+     async connectWebSocket(url) { // e.g. wss://your-broker.example/mqtt
+       // this.ws = new WebSocket(url); this.ws.onmessage = (e) => ...
+     } */
+}
+
+function downloadFile(name, text, mime) {
+  const blob = new Blob([text], { type: mime });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+}
+
+function exportControllerJS() {
+  const src = [
+    "// FreshGuard Standalone Pure Controller (ESP32 / Raspberry Pi / MicroPython port guide)",
+    "// Porting: replace Float32Array with standard arrays; call decide(obs, state, CONFIG) every 15 min (or 10s fast loop).",
+    "const CONFIG = " + JSON.stringify({ ZONES: CONFIG.ZONES, SAFE_T_MIN: CONFIG.SAFE_T_MIN, SAFE_T_MAX: CONFIG.SAFE_T_MAX, SAFE_PPM_CAP: CONFIG.SAFE_PPM_CAP, COMP_MIN_OFF_H: CONFIG.COMP_MIN_OFF_H, WATCHDOG_H: CONFIG.WATCHDOG_H, DT: CONFIG.DT, CRATE_KG: CONFIG.CRATE_KG, PRICE_INR_KG: CONFIG.PRICE_INR_KG, TARIFF_OFF: CONFIG.TARIFF_OFF, TARIFF_MID: CONFIG.TARIFF_MID, TARIFF_PEAK: CONFIG.TARIFF_PEAK, KW_COMP_INV: CONFIG.KW_COMP_INV, KW_FAN: CONFIG.KW_FAN, KW_VENT: CONFIG.KW_VENT, KW_MIST: CONFIG.KW_MIST, KW_LIGHT: CONFIG.KW_LIGHT }, null, 2) + ";",
+    "const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);",
+    getTariff.toString(),
+    ZoneEstimator.toString(),
+    makeCtrlState.toString(),
+    rlsFeatures.toString(),
+    rlsPredict.toString(),
+    updateOnlineLearner.toString(),
+    applySafetyInterlocks.toString(),
+    decide.toString(),
+    "if (typeof module !== 'undefined') module.exports = { CONFIG, makeCtrlState, decide };"
+  ].join("\n\n");
+  downloadFile("controller.js", src, "application/javascript");
+}
+
+/* ============================================================================
+   MODULE 8: Benchmark & Self-Tests — Headless paired multi-seed evaluation
+   ============================================================================ */
+const SCENARIO_LIST = [
+  { code: 0, name: "Standard" },
+  { code: 1, name: "Hot Day" },
+  { code: 2, name: "Power Cut" },
+  { code: 3, name: "Door Open" },
+  { code: 4, name: "Warm Harvest" },
+  { code: 5, name: "Dry Spell" },
+  { code: 6, name: "Ethylene Surge" },
+  { code: 7, name: "Mandi Crisis" },
+  { code: 8, name: "Sensor Fault" }
+];
+
+function runSingleHeadless(seed, scCode, baseMode, userSp, simGap, days = 7) {
+  const initRng = new SeededRNG(seed);
+  const F0 = CONFIG.CRATES.map(() => 0.88 + 0.11 * initRng.next());
+  const cVars = CONFIG.CRATES.map(() => 0.82 + 0.36 * initRng.next());
+  const E = createEnv(scCode);
+  const rmB = new RoomSim(seed + 101, F0, cVars), rmA = new RoomSim(seed + 101, F0, cVars);
+  if (scCode === 4 || scCode === 6) applyScenarioToEnv(E, [rmB, rmA], scCode);
+  const sB = new SensorSuite(seed + 303), sA = new SensorSuite(seed + 303);
+  const stB = makeCtrlState(baseMode, userSp), stA = makeCtrlState("ai", userSp);
+  const steps = Math.round((days * 24) / CONFIG.DT);
+  for (let i = 0; i < steps; i++) {
+    E.t += CONFIG.DT;
+    const oB = sB.sample(rmB, E, simGap), oA = sA.sample(rmA, E, simGap);
+    const cB = decide(oB, stB, CONFIG), cA = decide(oA, stA, CONFIG);
+    rmB.step(E, cB, simGap, false);
+    rmA.step(E, cA, simGap, true);
+  }
+  const bSpKg = rmB.spoiledCount() * CONFIG.CRATE_KG, aSpKg = rmA.spoiledCount() * CONFIG.CRATE_KG;
+  const bLoss = bSpKg * CONFIG.PRICE_INR_KG, aLoss = aSpKg * CONFIG.PRICE_INR_KG;
+  const bTot = bLoss + rmB.energyCost, aTot = aLoss + rmA.energyCost;
+  const optA = 100 * (rmA.optSteps[0] + rmA.optSteps[1] + rmA.optSteps[2]) / Math.max(1, 3 * rmA.totalSteps);
+  const bFr = rmB.avgFreshness(), aFr = rmA.avgFreshness();
+  const shelfExt = Math.max(-5, Math.min(10, (aFr - bFr) * 14));
+  return {
+    bSpKg, aSpKg, bLoss, aLoss, bKwh: rmB.kwh, aKwh: rmA.kwh, peakKw: rmA.peakKw,
+    optPct: optA, aFresh: aFr * 100, shelfExt,
+    co2Saved: (rmB.kwh - rmA.kwh) * CONFIG.CO2_KG_KWH,
+    netSaved: bTot - aTot
+  };
+}
+
+function stats(arr) {
+  const n = arr.length || 1;
+  const m = arr.reduce((s, v) => s + v, 0) / n;
+  const v = arr.reduce((s, x) => s + (x - m) * (x - m), 0) / Math.max(1, n - 1);
+  const sd = Math.sqrt(v);
+  return { mean: m, sd, ci95: 1.96 * sd / Math.sqrt(n) };
+}
+
+function runSelfTests() {
+  const res = [];
+  // 1. Determinism
+  const r1 = runSingleHeadless(42, 1, "tuned", 8, true, 2);
+  const r2 = runSingleHeadless(42, 1, "tuned", 8, true, 2);
+  const detOk = Math.abs(r1.netSaved - r2.netSaved) < 1e-9 && r1.aKwh === r2.aKwh;
+  res.push({ name: "Determinism (same seed = identical)", pass: detOk });
+  // 2. No NaN / Infinity
+  const finOk = Object.values(r1).every(v => Number.isFinite(v));
+  res.push({ name: "No NaN / Infinity in outputs", pass: finOk });
+  // 3. Non-negative energy
+  const engOk = r1.bKwh >= 0 && r1.aKwh >= 0 && r1.peakKw >= 0;
+  res.push({ name: "Energy & peak power non-negative", pass: engOk });
+  // 4. Spoiled crates never recover & safety limits respected
+  const initRng = new SeededRNG(99);
+  const F0 = CONFIG.CRATES.map(() => 0.12); // start spoiled
+  const E = createEnv(6);
+  const rm = new RoomSim(99, F0, CONFIG.CRATES.map(() => 1));
+  const sens = new SensorSuite(99), st = makeCtrlState("ai", 8);
+  let monoOk = true, safeOk = true;
+  for (let i = 0; i < 48; i++) {
+    E.t += CONFIG.DT;
+    const o = sens.sample(rm, E, true), c = decide(o, st, CONFIG);
+    if (c.setpoint < CONFIG.SAFE_T_MIN || c.setpoint > CONFIG.SAFE_T_MAX) safeOk = false;
+    rm.step(E, c, true, true);
+    for (let k = 0; k < rm.F.length; k++) if (rm.F[k] >= CONFIG.SPOIL_THRESH) monoOk = false;
+  }
+  res.push({ name: "Spoiled crates never recover", pass: monoOk });
+  res.push({ name: "Controller respects safety interlocks", pass: safeOk });
+  res.forEach(t => console.log(`[FreshGuard Test] ${t.pass ? "PASS" : "FAIL"}: ${t.name}`));
+  return res;
+}
+
+/* ============================================================================
+   MODULE 9: Render3D — Industrial Cold-Storage Warehouse (Three.js r128)
+   Built ONCE per canvas; resetSim() never leaks scenes/textures.
+   ============================================================================ */
+const _VR = (() => {
+  const rng = new SeededRNG(1337);
+  const vr = () => rng.next();
+  const mkCv = (w, h, fn) => { const c = document.createElement("canvas"); c.width = w; c.height = h; fn(c.getContext("2d"), w, h); return c; };
+  const toNormal = (src, str = 2.2) => {
+    const w = src.width, h = src.height, c = document.createElement("canvas"); c.width = w; c.height = h;
+    const g = c.getContext("2d"), sd = src.getContext("2d").getImageData(0, 0, w, h).data, od = g.createImageData(w, h), d = od.data;
+    const at = (x, y) => sd[((y + h) % h * w + (x + w) % w) * 4] / 255;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const dx = (at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2 * at(x - 1, y) - at(x - 1, y + 1)) * str;
+      const dy = (at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2 * at(x, y - 1) - at(x + 1, y - 1)) * str;
+      const inv = 1 / Math.sqrt(dx * dx + dy * dy + 1), idx = (y * w + x) * 4;
+      d[idx] = ((-dx * inv) * 0.5 + 0.5) * 255; d[idx + 1] = ((-dy * inv) * 0.5 + 0.5) * 255; d[idx + 2] = (inv * 0.5 + 0.5) * 255; d[idx + 3] = 255;
+    }
+    g.putImageData(od, 0, 0); return c;
+  };
+  const mergeGeo = geos => {
+    const arr = geos.map(g => { const b = g.index ? g.toNonIndexed() : g.clone(); if (!b.attributes.normal) b.computeVertexNormals(); return b; });
+    let tot = 0; arr.forEach(g => tot += g.attributes.position.count);
+    const pos = new Float32Array(tot * 3), nor = new Float32Array(tot * 3), uv = new Float32Array(tot * 2);
+    let off = 0;
+    arr.forEach(g => { const n = g.attributes.position.count; pos.set(g.attributes.position.array, off * 3); nor.set(g.attributes.normal.array, off * 3); if (g.attributes.uv) uv.set(g.attributes.uv.array, off * 2); off += n; g.dispose(); });
+    const out = new THREE.BufferGeometry(); out.setAttribute("position", new THREE.BufferAttribute(pos, 3)); out.setAttribute("normal", new THREE.BufferAttribute(nor, 3)); out.setAttribute("uv", new THREE.BufferAttribute(uv, 2)); return out;
+  };
+  const wallCol = mkCv(256, 256, (g, w, h) => {
+    g.fillStyle = "#d7e4ef"; g.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x += 64) {
+      const gr = g.createLinearGradient(x, 0, x + 64, 0);
+      gr.addColorStop(0, "#9eb2c2"); gr.addColorStop(.05, "#edf5fc"); gr.addColorStop(.5, "#dbe7f2"); gr.addColorStop(.95, "#c8d8e6"); gr.addColorStop(1, "#91a6b8");
+      g.fillStyle = gr; g.fillRect(x, 0, 64, h); g.fillStyle = "rgba(38,58,78,.36)"; g.fillRect(x, 0, 2, h);
+      for (let r = 12; r < 56; r += 14) { g.fillStyle = "rgba(255,255,255,.42)"; g.fillRect(x + r, 0, 2, h); g.fillStyle = "rgba(72,96,118,.16)"; g.fillRect(x + r + 2, 0, 2, h); }
+    }
+    const vh = g.createLinearGradient(0, 0, 0, h); vh.addColorStop(0, "rgba(30,54,78,.28)"); vh.addColorStop(.78, "rgba(255,255,255,0)"); vh.addColorStop(1, "rgba(22,38,56,.38)"); g.fillStyle = vh; g.fillRect(0, 0, w, h);
+  });
+  const wallH = mkCv(256, 256, (g, w, h) => { g.fillStyle = "#808080"; g.fillRect(0, 0, w, h); for (let x = 0; x < w; x += 64) { g.fillStyle = "#1e1e1e"; g.fillRect(x, 0, 3, h); for (let r = 12; r < 56; r += 14) { g.fillStyle = "#c0c0c0"; g.fillRect(x + r, 0, 3, h); } } });
+  const floorCol = mkCv(512, 512, (g, w, h) => {
+    g.fillStyle = "#6c7d8c"; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 3000; i++) { const x = vr() * w, y = vr() * h, s = 1 + vr() * 3, v = 96 + ((vr() * 38) | 0); g.fillStyle = `rgba(${v},${v + 10},${v + 18},.20)`; g.fillRect(x, y, s, s); }
+    g.strokeStyle = "rgba(28,40,54,.62)"; g.lineWidth = 2.5;
+    for (let i = 0; i <= w; i += 128) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, h); g.stroke(); g.beginPath(); g.moveTo(0, i); g.lineTo(w, i); g.stroke(); }
+  });
+  const floorH = mkCv(256, 256, (g, w, h) => { g.fillStyle = "#808080"; g.fillRect(0, 0, w, h); for (let i = 0; i < 1600; i++) { const v = 112 + ((vr() * 32) | 0); g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(vr() * w, vr() * h, 2, 2); } g.strokeStyle = "#222"; g.lineWidth = 2; for (let i = 0; i <= w; i += 64) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, h); g.stroke(); g.beginPath(); g.moveTo(0, i); g.lineTo(w, i); g.stroke(); } });
+  const floorRough = mkCv(512, 512, (g, w, h) => { g.fillStyle = "#666"; g.fillRect(0, 0, w, h); for (let i = 0; i < 28; i++) { const x = vr() * w, y = vr() * h, r = 22 + vr() * 76, gr = g.createRadialGradient(x, y, 2, x, y, r); gr.addColorStop(0, "rgba(8,8,8,.92)"); gr.addColorStop(1, "rgba(104,104,104,0)"); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill(); } });
+  const trenchCv = mkCv(256, 128, (g, w, h) => { g.fillStyle = "#242e38"; g.fillRect(0, 0, w, h); g.strokeStyle = "#6a7b8c"; g.lineWidth = 5; g.strokeRect(2, 2, w - 4, h - 4); for (let x = 8; x < w - 6; x += 10) { g.fillStyle = "#0e141a"; g.fillRect(x, 10, 5, h - 20); } });
+  const rollDoorCv = mkCv(256, 256, (g, w, h) => { g.fillStyle = "#cfdbe6"; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 32) { const gr = g.createLinearGradient(0, y, 0, y + 32); gr.addColorStop(0, "#eef5fb"); gr.addColorStop(1, "#8ca0b3"); g.fillStyle = gr; g.fillRect(0, y, w, 32); } g.fillStyle = "#1e293b"; g.fillRect(w / 2 - 3, 0, 6, h); });
+  const winCv = mkCv(256, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "#9ec4e0"); gr.addColorStop(1, "#283d52"); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.strokeStyle = "#cbd5e1"; g.lineWidth = 8; g.strokeRect(4, 4, w - 8, h - 8); g.fillStyle = "#cbd5e1"; g.fillRect(w / 2 - 3, 0, 6, h); });
+  const woodCol = mkCv(256, 128, (g, w, h) => { g.fillStyle = "#c48d52"; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 2) { const d = (vr() - .5) * 30; g.fillStyle = `rgb(${clamp(194 + d, 128, 232) | 0},${clamp(140 + d * .8, 86, 184) | 0},${clamp(80 + d * .6, 46, 126) | 0})`; g.fillRect(0, y, w, 2); } });
+  const woodH = mkCv(256, 128, (g, w, h) => { g.fillStyle = "#808080"; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 2) { const v = 100 + ((vr() * 54) | 0); g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(0, y, w, 2); } });
+  const tomCol = mkCv(128, 128, (g, w, h) => { g.fillStyle = "#fff"; g.fillRect(0, 0, w, h); for (let i = 0; i < 200; i++) { const v = 226 + ((vr() * 29) | 0); g.fillStyle = `rgba(${v},${v - 6},${v - 8},.24)`; g.beginPath(); g.arc(vr() * w, vr() * h, 2 + vr() * 8, 0, 6.283); g.fill(); } });
+  const tomH = mkCv(128, 128, (g, w, h) => { g.fillStyle = "#808080"; g.fillRect(0, 0, w, h); for (let i = 0; i < 260; i++) { const v = 108 + ((vr() * 38) | 0); g.fillStyle = `rgba(${v},${v},${v},.36)`; g.beginPath(); g.arc(vr() * w, vr() * h, 2 + vr() * 5, 0, 6.283); g.fill(); } });
+  const beamCv = mkCv(128, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "rgba(240,248,255,.42)"); gr.addColorStop(.5, "rgba(210,235,255,.15)"); gr.addColorStop(1, "rgba(180,220,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  const frostCol = mkCv(256, 128, (g, w, h) => { g.clearRect(0, 0, w, h); const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "rgba(238,250,255,.95)"); gr.addColorStop(1, "rgba(185,224,250,.15)"); g.fillStyle = gr; g.fillRect(0, 0, w, h); for (let i = 0; i < 500; i++) { const y = vr() * h; g.fillStyle = `rgba(255,255,255,${(1 - y / h) * .75})`; g.beginPath(); g.arc(vr() * w, y, 1 + vr() * 4, 0, 6.283); g.fill(); } });
+  const condCol = mkCv(256, 128, (g, w, h) => { g.clearRect(0, 0, w, h); for (let i = 0; i < 220; i++) { const x = vr() * w, y = vr() * h, r = 1.1 + vr() * 2.6; g.fillStyle = "rgba(205,236,255,.48)"; g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill(); g.fillStyle = "rgba(255,255,255,.9)"; g.beginPath(); g.arc(x - r * .3, y - r * .3, r * .36, 0, 6.283); g.fill(); } });
+  const mistCv = mkCv(128, 128, (g, w, h) => { g.clearRect(0, 0, w, h); [[64, 64, 60, .48], [50, 58, 42, .32], [78, 60, 40, .30]].forEach(([x, y, r, a]) => { const gr = g.createRadialGradient(x, y, 2, x, y, r); gr.addColorStop(0, `rgba(235,248,255,${a})`); gr.addColorStop(1, "rgba(175,220,248,0)"); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill(); }); });
+  const haloCv = mkCv(128, 128, (g, w, h) => { const gr = g.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, "rgba(245,250,255,.72)"); gr.addColorStop(.4, "rgba(205,235,255,.24)"); gr.addColorStop(1, "rgba(180,220,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  const dropCv = mkCv(32, 32, (g, w, h) => { const gr = g.createRadialGradient(16, 16, 1, 16, 16, 14); gr.addColorStop(0, "rgba(240,252,255,1)"); gr.addColorStop(.5, "rgba(150,225,255,.7)"); gr.addColorStop(1, "rgba(120,200,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  const outCv = mkCv(128, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "#84caff"); gr.addColorStop(.5, "#fff2cf"); gr.addColorStop(1, "#b99a74"); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  const mkLbl = (col, t1, t2) => mkCv(128, 64, (g, w, h) => { g.fillStyle = "#f7f5ef"; g.fillRect(0, 0, w, h); g.fillStyle = col; g.fillRect(0, 0, w, 17); g.fillStyle = "#fff"; g.font = "bold 9.5px sans-serif"; g.textAlign = "center"; g.fillText(t1, 64, 12); g.fillStyle = "#222"; g.font = "bold 8.5px monospace"; g.fillText(t2, 64, 31); for (let x = 14; x < 114; x += 4) { g.fillStyle = "#181818"; g.fillRect(x, 37, (x % 12 === 0) ? 2.5 : 1.2, 20); } });
+  const mkBadge = (bg, bd, txt, col) => mkCv(192, 64, (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = bg; g.strokeStyle = bd; g.lineWidth = 4; const r = 14; g.beginPath(); g.moveTo(r, 4); g.lineTo(w - r, 4); g.quadraticCurveTo(w - 4, 4, w - 4, r); g.lineTo(w - 4, h - r - 8); g.quadraticCurveTo(w - 4, h - 12, w - r, h - 12); g.lineTo(w / 2 + 10, h - 12); g.lineTo(w / 2, h - 2); g.lineTo(w / 2 - 10, h - 12); g.lineTo(r, h - 12); g.quadraticCurveTo(4, h - 12, 4, h - r - 8); g.lineTo(4, r); g.quadraticCurveTo(4, 4, r, 4); g.closePath(); g.fill(); g.stroke(); g.fillStyle = col; g.font = "bold 22px system-ui,sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(txt, w / 2, 28); });
+  const buildCrateGeo = () => { const parts = [], add = (w, h, d, x, y, z) => { const b = new THREE.BoxGeometry(w, h, d); b.translate(x, y, z); parts.push(b); }; const W = 1.7, H = .32, D = .8, t = .026; [-W / 2 + .035, W / 2 - .035].forEach(x => [-D / 2 + .035, D / 2 - .035].forEach(z => add(.06, H, .06, x, 0, z))); [-.105, 0, .105].forEach(y => { add(W, .068, t, 0, y, D / 2 - t / 2); add(W, .068, t, 0, y, -D / 2 + t / 2); add(t, .068, D - 2 * t, W / 2 - t / 2, y, 0); add(t, .068, D - 2 * t, -W / 2 + t / 2, y, 0); }); [-.26, 0, .26].forEach(z => add(W - .06, .02, .18, 0, -H / 2 + .015, z)); return mergeGeo(parts); };
+  const buildPalletGeo = () => { const parts = [], add = (w, h, d, x, y, z) => { const b = new THREE.BoxGeometry(w, h, d); b.translate(x, y, z); parts.push(b); }; [-.36, 0, .36].forEach(z => add(1.8, .024, .18, 0, .11, z)); [-.76, 0, .76].forEach(x => [-.36, 0, .36].forEach(z => add(.12, .085, .14, x, .055, z))); return mergeGeo(parts); };
+  const buildBracingGeo = () => { const parts = []; [-1, 1].forEach(s => { const zc = s * 2.25; for (let x = -10.5; x <= 10.5; x += 3)[.45, 1.15, 1.85, 2.55].forEach((y, j) => { const b = new THREE.BoxGeometry(.028, .028, 1.18); b.rotateX(j % 2 ? .56 : -.56); b.translate(x, y, zc); parts.push(b); }); }); return mergeGeo(parts); };
+  const buildGreensGeo = () => { const parts = []; for (let i = 0; i < 5; i++) for (let j = 0; j < 2; j++) { const bx = -.62 + i * .31, bz = -.18 + j * .36; for (let k = 0; k < 2; k++) { const g = new THREE.DodecahedronGeometry(.12 * (.88 + vr() * .24), 1); g.scale(1.15, .7, 1.05); g.rotateY(vr() * 3.14); g.translate(bx, .09 + k * .06, bz); parts.push(g); } } return mergeGeo(parts); };
+  const buildTomatoGeo = () => { const bodies = [], stems = []; for (let i = 0; i < 5; i++) for (let j = 0; j < 2; j++) { const r = .112 * (.86 + vr() * .28), x = -.64 + i * .32 + (vr() - .5) * .05, z = -.19 + j * .38 + (vr() - .5) * .05; const g = new THREE.SphereGeometry(r, 12, 9); g.scale(1, .86, 1); g.translate(x, .08, z); bodies.push(g); const st = new THREE.CylinderGeometry(r * .18, r * .06, .022, 5); st.translate(x, .08 + r * .86, z); stems.push(st); } for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { const r = .11 * (.86 + vr() * .26), x = -.46 + i * .31, z = -.14 + j * .28; const g = new THREE.SphereGeometry(r, 12, 9); g.scale(1, .86, 1); g.translate(x, .19, z); bodies.push(g); const st = new THREE.CylinderGeometry(r * .18, r * .06, .022, 5); st.translate(x, .19 + r * .86, z); stems.push(st); } return { body: mergeGeo(bodies), stem: mergeGeo(stems) }; };
+  const buildBananasGeo = () => { const parts = []; for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { const bx = -.56 + i * .37, bz = -.17 + j * .34; for (let b = 0; b < 3; b++) { const g = new THREE.TorusGeometry(.13, .034, 7, 10, Math.PI * .72); g.rotateX(Math.PI * .42); g.rotateY(b * .2); g.translate(bx + (b - 1) * .04, .11, bz + (b - 1) * .03); parts.push(g); } } return mergeGeo(parts); };
+  const buildCondGeo = () => { const parts = [], add = (w, h, d, x, y, z) => { const b = new THREE.BoxGeometry(w, h, d); b.translate(x, y, z); parts.push(b); }; add(1.714, .31, .004, 0, 0, .407); add(1.714, .31, .004, 0, 0, -.407); add(.004, .31, .814, .857, 0, 0); add(.004, .31, .814, -.857, 0, 0); return mergeGeo(parts); };
+  return {
+    wallCol, wallNorm: toNormal(wallH, 2.6), floorCol, floorNorm: toNormal(floorH, 1.9), floorRough, trenchCv, rollDoorCv, winCv, woodCol, woodNorm: toNormal(woodH, 2.0), tomCol, tomNorm: toNormal(tomH, 1.4), beamCv, frostCol, condCol, mistCv, haloCv, dropCv, outCv,
+    lblCvs: [mkLbl("#0284c7", "LEAFY GREENS", "ZONE A · 0-4°C"), mkLbl("#dc2626", "TOMATOES", "ZONE B · 12-13°C"), mkLbl("#d97706", "BANANAS", "ZONE C · 13-14°C")],
+    bWarnCv: mkBadge("rgba(34,20,6,.92)", "#f59e0b", "⚠ AT RISK", "#fcd34d"),
+    bSpoilCv: mkBadge("rgba(42,8,14,.94)", "#f43f5e", "✕ SPOILED", "#fda4af"),
+    bOkCv: mkBadge("rgba(7,30,22,.88)", "#10b981", "✓ FRESH", "#6ee7b7"),
+    crateGeo: buildCrateGeo(), palletGeo: buildPalletGeo(), bracingGeo: buildBracingGeo(), condGeo: buildCondGeo(),
+    greensGeo: buildGreensGeo(), tomGeo: buildTomatoGeo(), bananasGeo: buildBananasGeo(),
+    tex(cv, srgb, rx, ry) { const t = new THREE.CanvasTexture(cv); if (srgb) t.encoding = THREE.sRGBEncoding; if (rx || ry) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx || 1, ry || 1); } return t; }
+  };
+})();
+
+const CV = { px: -9.2, py: 1.7, pz: 0, yaw: 0, pit: -.05, tx: null, ty: null, tz: null, tyaw: null, tpit: null };
+const VIS = { showTags: true, inspMode: false, showGas: true, showThermal: false, quality: "auto", lowMode: false };
+
+function tempToRGB(T) {
+  // Blue (0°C) -> Cyan (8°C) -> Green (12°C) -> Yellow (18°C) -> Red (28°C)
+  const u = clamp(T / 28, 0, 1);
+  if (u < 0.25) { const t = u / 0.25; return [20, 90 + t * 140, 255]; }
+  if (u < 0.5) { const t = (u - 0.25) / 0.25; return [20 + t * 40, 230, 255 - t * 180]; }
+  if (u < 0.75) { const t = (u - 0.5) / 0.25; return [60 + t * 190, 230 - t * 30, 75 - t * 55]; }
+  const t = (u - 0.75) / 0.25; return [250, 200 - t * 165, 20];
+}
+
+class StoreView3D {
+  constructor(cv, isAi) {
+    this.cv = cv; this.isAi = isAi;
+    this.sc = new THREE.Scene();
+    this.sc.background = new THREE.Color(0x1a2e42);
+    this.sc.fog = new THREE.FogExp2(0x21384f, 0.015);
+    this.cam = new THREE.PerspectiveCamera(64, 1, 0.1, 65);
+    this.rd = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: "high-performance" });
+    this.isMob = matchMedia("(max-width:900px),(pointer:coarse)").matches;
+    this.applyQuality(this.isMob ? "low" : "high");
+    this.rd.shadowMap.enabled = true; this.rd.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.rd.toneMapping = THREE.ACESFilmicToneMapping; this.rd.toneMappingExposure = 1.22; this.rd.outputEncoding = THREE.sRGBEncoding;
+
+    // PMREM environment
+    const pm = new THREE.PMREMGenerator(this.rd), es = new THREE.Scene(); es.background = new THREE.Color(0x2c4660);
+    const em = (w, h, d, c, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ color: c })); m.position.set(x, y, z); es.add(m); };
+    em(24, .2, 6, 0xc2dff5, 0, 4.2, 0); em(24, .2, 6, 0x273645, 0, -2, 0);
+    [-7.5, -2.5, 2.5, 7.5].forEach(x => { em(1.8, .14, .3, 0xffffff, x, 4.0, -1.1); em(1.8, .14, .3, 0xffffff, x, 4.0, 1.1); });
+    this.sc.environment = pm.fromScene(es, 0.04).texture; pm.dispose();
+
+    const sc = this.sc;
+    const tWallC = _VR.tex(_VR.wallCol, true, 6, 1), tWallN = _VR.tex(_VR.wallNorm, false, 6, 1);
+    const tWallEndC = _VR.tex(_VR.wallCol, true, 1.6, 1), tWallEndN = _VR.tex(_VR.wallNorm, false, 1.6, 1);
+    const tFlrC = _VR.tex(_VR.floorCol, true, 6, 1.8), tFlrN = _VR.tex(_VR.floorNorm, false, 6, 1.8), tFlrR = _VR.tex(_VR.floorRough, false, 6, 1.8);
+    const tTrench = _VR.tex(_VR.trenchCv, true, 3, 1), tRoll = _VR.tex(_VR.rollDoorCv, true), tWin = _VR.tex(_VR.winCv, true);
+    const tWoodC = _VR.tex(_VR.woodCol, true), tWoodN = _VR.tex(_VR.woodNorm, false);
+    const tTomC = _VR.tex(_VR.tomCol, true, 2, 2), tTomN = _VR.tex(_VR.tomNorm, false, 2, 2);
+    const tBeam = _VR.tex(_VR.beamCv, true), tFrost = _VR.tex(_VR.frostCol, true, 2, 1), tFrostR = _VR.tex(_VR.frostCol, true, 8, 1);
+    const tCond = _VR.tex(_VR.condCol, true, 2, 1), tMist = _VR.tex(_VR.mistCv, true), tHalo = _VR.tex(_VR.haloCv, true), tDrop = _VR.tex(_VR.dropCv, true), tOut = _VR.tex(_VR.outCv, true);
+    this.tWarn = _VR.tex(_VR.bWarnCv, true); this.tSpoil = _VR.tex(_VR.bSpoilCv, true); this.tOk = _VR.tex(_VR.bOkCv, true);
+    const bx = (w, h, d, c, x, y, z, p = sc, opt) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .52, metalness: .14 }, opt || {}))); m.position.set(x, y, z); if (!opt || opt.rs !== false) m.receiveShadow = true; if (opt && opt.cs) m.castShadow = true; p.add(m); return m; };
+
+    /* Lighting + emergency red lights for power cuts */
+    this.amb = new THREE.AmbientLight(0xd8ecff, .48); sc.add(this.amb);
+    this.hemi = new THREE.HemisphereLight(0xeaf6ff, 0x334b62, .58); sc.add(this.hemi);
+    this.keyL = new THREE.DirectionalLight(0xf6fbff, .85); this.keyL.position.set(-2.5, 6.2, 1.6); this.keyL.castShadow = true;
+    this.keyL.shadow.mapSize.set(this.isMob ? 256 : 512, this.isMob ? 256 : 512);
+    this.keyL.shadow.camera.near = .5; this.keyL.shadow.camera.far = 22;
+    this.keyL.shadow.camera.left = -12; this.keyL.shadow.camera.right = 12; this.keyL.shadow.camera.top = 4.5; this.keyL.shadow.camera.bottom = -4.5;
+    this.keyL.shadow.bias = -.0012; this.keyL.shadow.normalBias = .025; sc.add(this.keyL);
+    this.emgL = new THREE.PointLight(0xff1e38, 0, 18, 1.4); this.emgL.position.set(0, 3.6, 0); sc.add(this.emgL);
+
+    this.ledMats = []; this.haloMats = []; this.beamMats = [];
+    this.LT = [-7.2, -1.0, 5.2].map((x, idx) => {
+      const col = idx === 0 ? 0xffefd0 : idx === 2 ? 0xd2f0ff : 0xf8fbff;
+      const l = new THREE.PointLight(col, .85, 15, 1.5); l.position.set(x, 3.7, 0); sc.add(l);
+      [-1.15, 1.15].forEach(z => {
+        bx(1.7, .05, .18, 0x8a9bad, x, 4.08, z, sc, { roughness: .30, metalness: .72, rs: false });
+        const dm = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: col, emissiveIntensity: 1.8, roughness: .18 });
+        this.ledMats.push({ m: dm, idx });
+        const diff = new THREE.Mesh(new THREE.BoxGeometry(1.58, .035, .12), dm); diff.position.set(x, 4.04, z); sc.add(diff);
+        const hm = new THREE.SpriteMaterial({ map: tHalo, color: col, transparent: true, opacity: .34, depthWrite: false, blending: THREE.AdditiveBlending });
+        this.haloMats.push({ m: hm, idx });
+        const hl = new THREE.Sprite(hm); hl.position.set(x, 3.96, z); hl.scale.set(2.6, .95, 1); sc.add(hl);
+        const bm = new THREE.MeshBasicMaterial({ map: tBeam, color: col, transparent: true, opacity: .10, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+        this.beamMats.push({ m: bm, idx });
+        const cone = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 2.5), bm); cone.position.set(x, 2.75, z); sc.add(cone);
+      });
+      return l;
+    });
+
+    /* Zone C Yellow Grow Lights + Gas Releaser Manifold */
+    this.growMats = []; this.growBeams = [];
+    this.growL = new THREE.PointLight(0xffb703, 1.0, 9, 1.5); this.growL.position.set(-7.5, 2.55, 0); sc.add(this.growL);
+    [-2.1, 2.1].forEach(z => {
+      bx(4.8, .08, .24, 0x2a2416, -7.5, 2.78, z, sc, { roughness: .35, metalness: .7 });
+      const gm = new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: 0xffaa00, emissiveIntensity: 2.2, roughness: .2 });
+      this.growMats.push(gm);
+      const tube = new THREE.Mesh(new THREE.BoxGeometry(4.6, .045, .15), gm); tube.position.set(-7.5, 2.72, z); sc.add(tube);
+      const bm = new THREE.MeshBasicMaterial({ map: tBeam, color: 0xffc324, transparent: true, opacity: .24, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+      this.growBeams.push(bm);
+      const sh = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 1.85), bm); sh.position.set(-7.5, 1.82, z + (z > 0 ? -.32 : .32)); sc.add(sh);
+    });
+    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(.14, .14, 1.05, 12), new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: .32, metalness: .58 }));
+    cyl.position.set(-9.6, .56, 1.55); sc.add(cyl);
+    [-1.72, 1.72].forEach(z => {
+      const mp = new THREE.Mesh(new THREE.CylinderGeometry(.018, .018, 4.6, 8), new THREE.MeshStandardMaterial({ color: 0xd99b52, roughness: .28, metalness: .85 }));
+      mp.rotation.z = Math.PI / 2; mp.position.set(-7.5, 2.52, z); sc.add(mp);
+    });
+    this.gasRelPuffs = [];
+    [-8.8, -6.2].forEach(x => [-1.72, 1.72].forEach(z => {
+      bx(.09, .06, .09, 0xf59e0b, x, 2.48, z, sc, { roughness: .3, metalness: .75 });
+      const sm = new THREE.SpriteMaterial({ map: tMist, color: 0xffc947, transparent: true, opacity: 0, depthWrite: false });
+      const sp = new THREE.Sprite(sm); sp.position.set(x, 2.15, z); sp.scale.set(.9, .75, 1); sc.add(sp);
+      this.gasRelPuffs.push({ sp, sm, x, z, ph: Math.random() });
+    }));
+
+    /* Zone B Overhead Stainless Exhaust Hood + Upward Curling Gas Extraction */
+    bx(3.8, .28, 1.3, 0x9fb0c0, -1.5, 3.22, 0, sc, { roughness: .28, metalness: .78 });
+    bx(3.6, .06, 1.1, 0x1e293b, -1.5, 3.06, 0, sc, { roughness: .5, metalness: .5 });
+    this.ventGlowMat = new THREE.MeshStandardMaterial({ color: 0x34d399, emissive: 0x10b981, emissiveIntensity: .1, roughness: .25 });
+    const vStr = new THREE.Mesh(new THREE.BoxGeometry(3.4, .04, .05), this.ventGlowMat); vStr.position.set(-1.5, 3.12, .66); sc.add(vStr);
+    this.exStreaks = [];
+    for (let i = 0; i < 12; i++) {
+      const sm = new THREE.SpriteMaterial({ map: tMist, color: 0x6ee7b7, transparent: true, opacity: 0, depthWrite: false });
+      const sp = new THREE.Sprite(sm); sp.scale.set(.58, .48, 1); sc.add(sp);
+      this.exStreaks.push({ sp, sm, x: -3.0 + (i % 6) * .58, z: (i < 6 ? -.38 : .38), ph: i / 12 });
+    }
+
+    /* Zone A Mist-Sprayer Manifold + Gravity Falling Droplets Particle System */
+    [-1.82, 1.82].forEach(z => {
+      const mp = new THREE.Mesh(new THREE.CylinderGeometry(.022, .022, 5.0, 8), new THREE.MeshStandardMaterial({ color: 0xb8c8d8, roughness: .25, metalness: .88 }));
+      mp.rotation.z = Math.PI / 2; mp.position.set(4.6, 2.62, z); sc.add(mp);
+      [3.2, 4.6, 6.0].forEach(x => { const n = new THREE.Mesh(new THREE.CylinderGeometry(.022, .032, .07, 8), new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: .25, metalness: .85 })); n.position.set(x, 2.56, z); sc.add(n); });
+    });
+    const DR_N = 96;
+    this.dropPos = new Float32Array(DR_N * 3);
+    this.dropMeta = Array.from({ length: DR_N }, (_, i) => ({
+      nx: [3.2, 4.6, 6.0][i % 3], nz: (i % 2 ? 1.82 : -1.82),
+      ph: Math.random(), vx: (Math.random() - .5) * .45, vz: (Math.random() - .5) * .45
+    }));
+    const dg = new THREE.BufferGeometry(); dg.setAttribute("position", new THREE.BufferAttribute(this.dropPos, 3));
+    this.dropMat = new THREE.PointsMaterial({ color: 0xc2f0ff, map: tDrop, size: .11, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+    this.dropPts = new THREE.Points(dg, this.dropMat); this.dropPts.frustumCulled = false; sc.add(this.dropPts);
+
+    /* Volumetric Gas Field Visualization (sampled from simulated 22x10 gas grid) */
+    this.gasSprites = [];
+    for (let gx = 2; gx < CONFIG.NX - 1; gx += 2) {
+      for (let gz = -1; gz <= 1; gz += 2) {
+        const sm = new THREE.SpriteMaterial({ map: tMist, color: 0xf5b942, transparent: true, opacity: 0, depthWrite: false });
+        const sp = new THREE.Sprite(sm);
+        const wx = 10 - gx, wz = gz * 1.15, wy = 1.45 + ((gx * 7) % 5) * .18;
+        sp.position.set(wx, wy, wz); sp.scale.set(2.1, 1.5, 1); sc.add(sp);
+        this.gasSprites.push({ sp, sm, gx, gy: gz > 0 ? 7 : 2, wy, ph: gx * .6 + gz });
+      }
+    }
+
+    /* Thermal Heat-Map Floor Overlay Canvas (toggled by user) */
+    this.thCv = document.createElement("canvas"); this.thCv.width = CONFIG.NX; this.thCv.height = CONFIG.NY;
+    this.thCtx = this.thCv.getContext("2d");
+    this.thTex = new THREE.CanvasTexture(this.thCv); this.thTex.minFilter = THREE.LinearFilter; this.thTex.magFilter = THREE.LinearFilter;
+    this.thFloor = new THREE.Mesh(new THREE.PlaneGeometry(22.6, 5.6), new THREE.MeshBasicMaterial({ map: this.thTex, transparent: true, opacity: .62, depthWrite: false }));
+    this.thFloor.rotation.x = -Math.PI / 2; this.thFloor.position.set(0, .012, 0); this.thFloor.visible = false; sc.add(this.thFloor);
+
+    /* PVC Isolation Partitions (x=-4.5 and x=+1.5) */
+    this.partCurtains = [];
+    const polyMat = new THREE.MeshPhysicalMaterial({ color: 0xd8eeff, transparent: true, opacity: .24, roughness: .08, clearcoat: .95, side: THREE.DoubleSide, depthWrite: false });
+    const stripMat = new THREE.MeshPhysicalMaterial({ color: 0xc2e8ff, transparent: true, opacity: .30, roughness: .10, clearcoat: .9, side: THREE.DoubleSide, depthWrite: false });
+    [[-4.5, 0xf59e0b], [1.5, 0x38bdf8]].forEach(([px, ac]) => {
+      [-1.42, 1.42].forEach(z => bx(.08, 2.75, .08, 0x64748b, px, 1.375, z, sc, { roughness: .3, metalness: .8 }));
+      bx(.10, .12, 5.6, 0x475569, px, 2.75, 0, sc, { roughness: .35, metalness: .75 });
+      bx(.11, .035, 5.6, ac, px, 2.69, 0, sc, { emissive: ac, emissiveIntensity: .65 });
+      [-2.12, 2.12].forEach(z => { const w = new THREE.Mesh(new THREE.PlaneGeometry(1.36, 2.68), polyMat); w.position.set(px, 1.34, z); w.rotation.y = Math.PI / 2; sc.add(w); });
+      for (let i = 0; i < 7; i++) {
+        const pv = new THREE.Group(); pv.position.set(px, 2.68, -1.14 + i * .38);
+        const pl = new THREE.Mesh(new THREE.PlaneGeometry(.36, 2.58), stripMat); pl.position.y = -1.29; pl.rotation.y = Math.PI / 2; pv.add(pl);
+        sc.add(pv); this.partCurtains.push({ pv, i });
+      }
+    });
+
+    /* Double-sided Live Hanging Zone Boards (show real-time T / RH / ppm for each zone!) */
+    this.zoneBoards = [[4.8, 0, "#38bdf8", "#081b29", "ZONE A · GREENS"], [-1.2, 1, "#f43f5e", "#240c14", "ZONE B · TOMATOES"], [-5.8, 2, "#f59e0b", "#241806", "ZONE C · BANANAS"]].map(([x, zi, col, bg, title]) => {
+      const c = document.createElement("canvas"); c.width = 320; c.height = 88;
+      const ctx = c.getContext("2d"), tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
+      const sy = 2.46;
+      [-.76, .76].forEach(z => { const rod = new THREE.Mesh(new THREE.CylinderGeometry(.009, .009, 1.55, 6), new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: .8, roughness: .3 })); rod.position.set(x, sy + .95, z); sc.add(rod); });
+      bx(.05, .48, 1.80, 0x0b1220, x, sy, 0, sc, { roughness: .35, metalness: .6 });
+      const f1 = new THREE.Mesh(new THREE.PlaneGeometry(1.74, .44), new THREE.MeshBasicMaterial({ map: tex })); f1.position.set(x - .03, sy, 0); f1.rotation.y = -Math.PI / 2; sc.add(f1);
+      const f2 = new THREE.Mesh(new THREE.PlaneGeometry(1.74, .44), new THREE.MeshBasicMaterial({ map: tex })); f2.position.set(x + .03, sy, 0); f2.rotation.y = Math.PI / 2; sc.add(f2);
+      return { zi, col, bg, title, ctx, tex };
+    });
+
+    /* Overhead cylindrical air duct + red fire pipe */
+    const duct = new THREE.Mesh(new THREE.CylinderGeometry(.30, .30, 21.5, 14), new THREE.MeshStandardMaterial({ color: 0xb8c7d6, roughness: .30, metalness: .80 }));
+    duct.rotation.z = Math.PI / 2; duct.position.set(0, 3.82, 0); sc.add(duct);
+    const fire = new THREE.Mesh(new THREE.CylinderGeometry(.032, .032, 21.5, 8), new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: .36, metalness: .55 }));
+    fire.rotation.z = Math.PI / 2; fire.position.set(0, 3.96, -1.65); sc.add(fire);
+
+    /* Wet epoxy floor + mirrored reflection layer + trench grate + zone stripes */
+    const subF = new THREE.Mesh(new THREE.PlaneGeometry(23.6, 6.0), new THREE.MeshBasicMaterial({ color: 0x0d1824 })); subF.rotation.x = -Math.PI / 2; subF.position.set(0, -4.25, 0); sc.add(subF);
+    const refG = new THREE.Group(); refG.scale.y = -1; refG.position.y = -.02; sc.add(refG);
+    const rbx = (w, h, d, c, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ color: c })); m.position.set(x, y, z); refG.add(m); return m; };
+    [-7.2, -1.0, 5.2].forEach(x => [-1.15, 1.15].forEach(z => rbx(1.58, .04, .14, 0xd8ecff, x, 4.04, z)));
+    const flr = new THREE.Mesh(new THREE.PlaneGeometry(23, 5.8), new THREE.MeshPhysicalMaterial({ color: 0x9fb0c0, map: tFlrC, normalMap: tFlrN, normalScale: new THREE.Vector2(.46, .46), roughnessMap: tFlrR, roughness: .88, metalness: .14, clearcoat: .74, clearcoatRoughness: .18, envMapIntensity: 1.5, transparent: true, opacity: .76 }));
+    flr.rotation.x = -Math.PI / 2; flr.receiveShadow = true; sc.add(flr);
+    const trench = new THREE.Mesh(new THREE.PlaneGeometry(.62, 3.1), new THREE.MeshStandardMaterial({ map: tTrench, roughness: .34, metalness: .76 })); trench.rotation.x = -Math.PI / 2; trench.position.set(-7.6, .004, 0); sc.add(trench);
+    [-1.42, 1.42].forEach(z => { const st = new THREE.Mesh(new THREE.PlaneGeometry(21.4, .075), new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: .45, transparent: true, opacity: .82 })); st.rotation.x = -Math.PI / 2; st.position.set(0, .003, z); sc.add(st); });
+
+    /* Walls, ceiling, observation window, roll-up door + sunbeam dust motes */
+    const wSide = new THREE.MeshStandardMaterial({ color: 0xdce8f3, map: tWallC, normalMap: tWallN, normalScale: new THREE.Vector2(.7, .7), roughness: .44, metalness: .16 });
+    const wEnd = new THREE.MeshStandardMaterial({ color: 0xdce8f3, map: tWallEndC, normalMap: tWallEndN, normalScale: new THREE.Vector2(.7, .7), roughness: .44, metalness: .16 });
+    bx(23, .1, 5.8, 0xd0dfec, 0, 4.22, 0, sc, { roughness: .52, metalness: .18, rs: false });
+    [-9, -4.5, 0, 4.5, 9].forEach(x => bx(.16, .18, 5.7, 0x64788c, x, 4.08, 0, sc, { roughness: .36, metalness: .74 }));
+    const bw = new THREE.Mesh(new THREE.BoxGeometry(.2, 4.25, 5.8), wEnd); bw.position.set(11.1, 2.1, 0); bw.receiveShadow = true; sc.add(bw);
+    [2.9, -2.9].forEach(z => { const sw = new THREE.Mesh(new THREE.BoxGeometry(23, 4.25, .2), wSide); sw.position.set(0, 2.1, z); sw.receiveShadow = true; sc.add(sw); });
+    const obsW = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.35), new THREE.MeshBasicMaterial({ map: tWin })); obsW.position.set(-9.4, 1.55, -2.78); sc.add(obsW);
+    [-1.52, 1.52].forEach(z => { const r = new THREE.Mesh(new THREE.CylinderGeometry(.045, .045, 1.2, 8), new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: .32, metalness: .45 })); r.rotation.x = Math.PI / 2; r.position.set(-10.35, .58, z + (z > 0 ? .55 : -.55)); sc.add(r); });
+    bx(.2, 4.25, 1.8, 0xdce8f3, -11.1, 2.1, 2.0, sc, { map: tWallEndC }); bx(.2, 4.25, 1.8, 0xdce8f3, -11.1, 2.1, -2.0, sc, { map: tWallEndC }); bx(.2, 1.55, 2.2, 0xdce8f3, -11.1, 3.45, 0, sc, { map: tWallEndC });
+    const outM = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.8), new THREE.MeshBasicMaterial({ map: tOut })); outM.position.set(-11.4, 1.4, 0); outM.rotation.y = Math.PI / 2; sc.add(outM);
+    this.door = new THREE.Group(); this.door.position.set(-10.95, 0, -1.05); sc.add(this.door);
+    bx(.10, 2.65, 2.1, 0xd6e2ec, 0, 1.325, 1.05, this.door, { map: tRoll, roughness: .32, metalness: .45, cs: true });
+    this.doorLight = new THREE.PointLight(0xffcb82, 0, 11, 1.5); this.doorLight.position.set(-10.4, 1.6, 0); sc.add(this.doorLight);
+    this.sunBeamMat = new THREE.MeshBasicMaterial({ map: tBeam, color: 0xffd896, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+    const sunB = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3.8), this.sunBeamMat); sunB.position.set(-9.4, 1.3, 0); sunB.rotation.set(0, 0, -1.08); sc.add(sunB);
+
+    /* Back wall digital thermometer + AC Evaporator + Frost + Icicles */
+    this.signCv = document.createElement("canvas"); this.signCv.width = 256; this.signCv.height = 128;
+    this.signCtx = this.signCv.getContext("2d"); this.signTex = new THREE.CanvasTexture(this.signCv); this.signTex.encoding = THREE.sRGBEncoding;
+    bx(.08, .62, 1.28, 0x141e28, 10.96, 1.65, 0, sc, { roughness: .32, metalness: .70 });
+    const sm = new THREE.Mesh(new THREE.PlaneGeometry(1.18, .52), new THREE.MeshBasicMaterial({ map: this.signTex })); sm.position.set(10.91, 1.65, 0); sm.rotation.y = -Math.PI / 2; sc.add(sm);
+    this.acLight = new THREE.PointLight(0x66ccff, .75, 11, 1.6); this.acLight.position.set(9.4, 2.8, 0); sc.add(this.acLight);
+    bx(.82, 1.24, 2.56, 0xe0e8f0, 10.58, 3.02, 0, sc, { roughness: .30, metalness: .48, cs: true });
+    bx(.04, .98, 2.24, 0x1a242e, 10.18, 3.02, 0, sc, { roughness: .55, metalness: .65 });
+    const gMat = new THREE.MeshStandardMaterial({ color: 0x66788a, roughness: .30, metalness: .78 });
+    [.52, .36, .20].forEach(rad => { const rg = new THREE.Mesh(new THREE.TorusGeometry(rad, rad > .4 ? .04 : .012, 8, 24), gMat); rg.position.set(10.12, 3.02, 0); rg.rotation.y = Math.PI / 2; sc.add(rg); });
+    this.glowMat = new THREE.MeshStandardMaterial({ color: 0x44aaff, emissive: 0x2288dd, emissiveIntensity: 1.25, roughness: .20 });
+    const glM = new THREE.Mesh(new THREE.BoxGeometry(.05, .08, 1.8), this.glowMat); glM.position.set(10.15, 2.42, 0); sc.add(glM);
+    this.rot = new THREE.Group(); this.rot.position.set(10.12, 3.02, 0); sc.add(this.rot);
+    for (let i = 0; i < 4; i++) { const b = bx(.02, .92, .15, 0x495c6e, 0, 0, 0, this.rot, { roughness: .26, metalness: .80 }); b.rotation.x = i * Math.PI / 4; b.rotation.y = .18; }
+    this.acFrostMat = new THREE.MeshStandardMaterial({ color: 0xeef9ff, map: tFrost, transparent: true, opacity: .75, roughness: .32, emissive: 0x4a7ea8, emissiveIntensity: .16, depthWrite: false });
+    const af = new THREE.Mesh(new THREE.BoxGeometry(.04, .22, 2.58), this.acFrostMat); af.position.set(10.13, 2.45, 0); sc.add(af);
+    for (let i = 0; i < 11; i++) { const z = -1.05 + i * .21, len = .05 + ((i * 37) % 10) * .008; const ic = new THREE.Mesh(new THREE.ConeGeometry(.014, len, 6), this.acFrostMat); ic.rotation.x = Math.PI; ic.position.set(10.14, 2.33 - len * .45, z); sc.add(ic); }
+
+    /* Ceiling fans */
+    this.cf = [-6, 0, 6].map(x => {
+      const g = new THREE.Group(); g.position.set(x, 3.36, 0); sc.add(g);
+      for (let i = 0; i < 3; i++) { const a = new THREE.Group(); a.rotation.y = i * 2.09; g.add(a); bx(.88, .018, .12, 0x34404d, .52, 0, 0, a, { roughness: .34, metalness: .62 }); }
+      return g;
+    });
+
+    /* Racks, X-bracing, Euro-pallets, Frost */
+    this.rackFrostMat = new THREE.MeshStandardMaterial({ color: 0xe8f7ff, map: tFrostR, transparent: true, opacity: .6, roughness: .34, emissive: 0x3c6f96, emissiveIntensity: .12, depthWrite: false });
+    sc.add(new THREE.Mesh(_VR.bracingGeo, new THREE.MeshStandardMaterial({ color: 0x526b82, roughness: .36, metalness: .74 })));
+    const palInst = new THREE.InstancedMesh(_VR.palletGeo, new THREE.MeshStandardMaterial({ color: 0xb58654, map: tWoodC, normalMap: tWoodN, roughness: .84 }), 12);
+    let pIdx = 0; const dum = new THREE.Object3D();
+    [-1, 1].forEach(s => {
+      const zc = s * 2.25;
+      for (let x = -10.5; x <= 10.5; x += 3) [-.48, .48].forEach(o => bx(.09, 2.85, .09, 0x2e587d, x, 1.425, zc + o, sc, { roughness: .34, metalness: .68, cs: true }));
+      for (let c = 0; c < 6; c++) { dum.position.set(10 - (4 + 3 * c), 0, zc); dum.updateMatrix(); palInst.setMatrixAt(pIdx++, dum.matrix); }
+      [.3, 1.15, 2.0].forEach(y => { bx(21.8, .06, 1.02, 0xd97724, 0, y, zc, sc, { roughness: .38, metalness: .48, cs: true }); const rf = new THREE.Mesh(new THREE.BoxGeometry(8.5, .036, .035), this.rackFrostMat); rf.position.set(6.0, y + .026, zc - s * .515); sc.add(rf); });
+    });
+    palInst.instanceMatrix.needsUpdate = true; sc.add(palInst);
+
+    /* Crates (Instanced) + Condensation + 3 Zone Produce Meshes + Spoil Tags + Vapor */
+    const crateInst = new THREE.InstancedMesh(_VR.crateGeo, new THREE.MeshStandardMaterial({ color: 0xdeb98f, map: tWoodC, normalMap: tWoodN, normalScale: new THREE.Vector2(.75, .75), roughness: .74 }), CONFIG.CRATES.length);
+    crateInst.castShadow = true; crateInst.receiveShadow = true;
+    this.condMat = new THREE.MeshPhysicalMaterial({ color: 0xe2f5ff, map: tCond, transparent: true, opacity: .38, roughness: .09, clearcoat: .94, depthWrite: false });
+    const condInst = new THREE.InstancedMesh(_VR.condGeo, this.condMat, CONFIG.CRATES.length);
+    const lblMats = _VR.lblCvs.map(c => new THREE.MeshStandardMaterial({ map: _VR.tex(c, true), roughness: .60 }));
+    const lblGeo = new THREE.PlaneGeometry(.38, .17), stemMat = new THREE.MeshStandardMaterial({ color: 0x367328, roughness: .56 });
+    const bezMat = new THREE.MeshStandardMaterial({ color: 0x16202b, roughness: .40, metalness: .60 });
+    this.cm = [];
+    CONFIG.CRATES.forEach((c, idx) => {
+      const s = c.s ? 1 : -1, zc = s * 2.25, py = [.3, 1.15, 2.0][c.l], x = 10 - c.gx;
+      const g = new THREE.Group(); g.position.set(x, py + .19, zc); sc.add(g);
+      dum.position.set(x, py + .19, zc); dum.updateMatrix(); crateInst.setMatrixAt(idx, dum.matrix); condInst.setMatrixAt(idx, dum.matrix);
+      const lb = new THREE.Mesh(lblGeo, lblMats[c.z]); lb.position.set(x, py + .19, zc - s * .406); lb.rotation.y = s > 0 ? Math.PI : 0; sc.add(lb);
+      let pm, tm, sm = null;
+      if (c.z === 0) { pm = new THREE.MeshPhysicalMaterial({ color: 0x22a849, map: tTomC, normalMap: tTomN, roughness: .42, clearcoat: .38 }); tm = new THREE.Mesh(_VR.greensGeo, pm); g.add(tm); }
+      else if (c.z === 2) { pm = new THREE.MeshPhysicalMaterial({ color: 0xf4c425, map: tTomC, normalMap: tTomN, roughness: .34, clearcoat: .40 }); tm = new THREE.Mesh(_VR.bananasGeo, pm); g.add(tm); }
+      else { pm = new THREE.MeshPhysicalMaterial({ color: 0xd4261b, map: tTomC, normalMap: tTomN, roughness: .18, clearcoat: .76 }); tm = new THREE.Mesh(_VR.tomGeo.body, pm); g.add(tm); sm = new THREE.Mesh(_VR.tomGeo.stem, stemMat); g.add(sm); }
+      const bez = new THREE.Mesh(new THREE.BoxGeometry(1.46, .075, .028), bezMat); bez.position.set(x, py + .66, zc - s * .565); sc.add(bez);
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(1.4, .048, .032), new THREE.MeshStandardMaterial({ color: 0x2ecc71, emissive: 0x1faa58, emissiveIntensity: .75, roughness: .26 }));
+      bar.position.set(x, py + .66, zc - s * .545); sc.add(bar);
+      const tagMat = new THREE.SpriteMaterial({ map: this.tWarn, transparent: true, opacity: .94, depthTest: false });
+      const tag = new THREE.Sprite(tagMat); tag.position.set(x, py + .90, zc - s * .48); tag.scale.set(.86, .29, 1); tag.visible = false; sc.add(tag);
+      const vapMat = new THREE.SpriteMaterial({ map: tMist, color: 0xb8c44a, transparent: true, opacity: 0, depthWrite: false });
+      const vap = new THREE.Sprite(vapMat); vap.position.set(x, py + .48, zc); vap.scale.set(.95, .65, 1); vap.visible = false; sc.add(vap);
+      this.cm.push({ pm, tm, sm, bar, x, py, zc, z: c.z, tag, tagMat, vap, vapMat, phv: idx * .73 });
+    });
+    crateInst.instanceMatrix.needsUpdate = true; condInst.instanceMatrix.needsUpdate = true; sc.add(crateInst); sc.add(condInst);
+
+    /* Volumetric Cold Mist near AC Evaporator */
+    this.mistArr = Array.from({ length: 22 }, (_, i) => {
+      const sm = new THREE.SpriteMaterial({ map: tMist, color: 0xdcf3ff, transparent: true, opacity: .26, depthWrite: false });
+      const sp = new THREE.Sprite(sm); const r0 = .9 + Math.random() * 1.1; sp.scale.set(r0 * 1.4, r0, 1); sc.add(sp);
+      return { sp, sm, ph: i / 22, zy: (Math.random() - .5) * 2.1, r0, wob: Math.random() * 6.28 };
+    });
+    this.dp = 0; this.lastW = 0; this.lastH = 0; this.lastSign = -9; this.sway = 0;
+  }
+
+  applyQuality(mode) {
+    const low = mode === "low";
+    this.rd.setPixelRatio(Math.min(window.devicePixelRatio || 1, low ? 1.0 : 1.5));
+    if (this.keyL) this.keyL.castShadow = !low;
+  }
+
+  redrawBoards(r) {
+    const sc = this.signCtx;
+    sc.fillStyle = "#070d14"; sc.fillRect(0, 0, 256, 128);
+    sc.strokeStyle = this.isAi ? "#10b981" : "#f59e0b"; sc.lineWidth = 4; sc.strokeRect(4, 4, 248, 120);
+    sc.fillStyle = this.isAi ? "#34d399" : "#fbbf24"; sc.font = "bold 16px monospace";
+    sc.fillText(this.isAi ? "FRESHGUARD AI" : "BASELINE", 16, 26);
+    sc.fillStyle = this.isAi ? "#e6fff5" : "#ffe4b5"; sc.font = "bold 42px monospace";
+    sc.fillText(r.Ta.toFixed(1) + "°C", 16, 80);
+    sc.fillStyle = "#7dd3fc"; sc.font = "bold 16px monospace";
+    sc.fillText("RH " + (r.RH[0] | 0) + "%", 162, 56);
+    sc.fillText((r.zoneG[1] | 0) + " ppm", 162, 82);
+    sc.fillStyle = "#64748b"; sc.font = "12px monospace";
+    sc.fillText("SET " + r.setpoint.toFixed(1) + "°C · " + r.curKw.toFixed(1) + "kW", 16, 112);
+    this.signTex.needsUpdate = true;
+
+    // Live per-zone hanging boards with T / RH / ppm!
+    this.zoneBoards.forEach(b => {
+      const g = b.ctx;
+      g.fillStyle = b.bg; g.fillRect(0, 0, 320, 88);
+      g.strokeStyle = b.col; g.lineWidth = 5; g.strokeRect(3, 3, 314, 82);
+      g.fillStyle = b.col; g.fillRect(3, 3, 14, 82);
+      g.fillStyle = "#ffffff"; g.font = "bold 22px system-ui,sans-serif"; g.fillText(b.title, 26, 33);
+      g.fillStyle = "#e2f2ff"; g.font = "bold 17px monospace";
+      g.fillText(`${r.zoneT[b.zi].toFixed(1)}°C · ${r.RH[b.zi] | 0}% RH · ${r.zoneG[b.zi].toFixed(0)}ppm`, 26, 66);
+      b.tex.needsUpdate = true;
+    });
+  }
+
+  render(dt, t, r, E, moving) {
+    const w = this.cv.clientWidth, h = this.cv.clientHeight;
+    if (w && h && (w !== this.lastW || h !== this.lastH)) { this.lastW = w; this.lastH = h; this.rd.setSize(w, h, false); this.cam.aspect = w / h; this.cam.updateProjectionMatrix(); }
+    const pw = E.isPowerOn(E.t), k = pw ? 1 : .08;
+    // Emergency red lighting during power cut!
+    this.emgL.intensity = pw ? 0 : (1.1 + 0.7 * Math.sin(t * 4.5));
+    this.LT.forEach((l, idx) => { const d = this.isAi ? (idx === 0 ? .55 : idx === 1 ? .78 : .92) : 1.0; l.intensity = .85 * k * d; });
+    this.ledMats.forEach(o => { const d = this.isAi ? (o.idx === 0 ? .55 : o.idx === 1 ? .78 : .92) : 1.0; o.m.emissiveIntensity = pw ? (1.8 * d) : .05; });
+    this.haloMats.forEach(o => { const d = this.isAi ? (o.idx === 0 ? .55 : o.idx === 1 ? .78 : .92) : 1.0; o.m.opacity = pw ? (.34 * d) : .01; });
+    this.beamMats.forEach(o => { o.m.opacity = pw ? .10 : 0; });
+    this.keyL.intensity = .85 * k; this.amb.intensity = pw ? .48 : .10; this.hemi.intensity = pw ? .58 : .08;
+
+    // Zone C yellow grow lights + gas puffs
+    const gPow = pw ? r.light : 0;
+    this.growL.intensity = 1.25 * gPow;
+    this.growMats.forEach(m => m.emissiveIntensity = 2.6 * gPow);
+    this.growBeams.forEach(m => m.opacity = .28 * gPow);
+    this.gasRelPuffs.forEach(p => {
+      if (r.gasRel > .05 && pw) { const u = (p.ph + t * .38) % 1; p.sp.position.y = 2.45 - u * .9; p.sm.opacity = Math.sin(u * Math.PI) * (.18 + .25 * r.gasRel); }
+      else p.sm.opacity = 0;
+    });
+
+    // Zone B exhaust hood upward extraction
+    this.ventGlowMat.emissiveIntensity = r.vent > .1 && pw ? 1.8 : .12;
+    this.exStreaks.forEach(s => {
+      if (r.vent > .1 && pw) { const u = (s.ph + t * .6) % 1; s.sp.position.set(s.x + Math.sin(u * 6 + s.ph) * .12, 1.5 + u * 1.55, s.z); s.sm.opacity = Math.sin(u * Math.PI) * .38 * r.vent; }
+      else s.sm.opacity = 0;
+    });
+
+    // Zone A falling mist droplets with gravity
+    if (r.mist > .05 && pw) {
+      this.dropMat.opacity = .78 * r.mist;
+      for (let i = 0; i < this.dropMeta.length; i++) {
+        const dm = this.dropMeta[i], u = (dm.ph + t * .65) % 1;
+        this.dropPos[i * 3] = dm.nx + dm.vx * u;
+        this.dropPos[i * 3 + 1] = 2.52 - 1.9 * u * u; // gravity acceleration
+        this.dropPos[i * 3 + 2] = dm.nz + dm.vz * u;
+      }
+      this.dropPts.geometry.attributes.position.needsUpdate = true;
+    } else this.dropMat.opacity = 0;
+
+    // Volumetric Gas Field Overlay (color & opacity scaled by simulated ppm)
+    this.gasSprites.forEach(gs => {
+      if (!VIS.showGas) { gs.sm.opacity = 0; return; }
+      const ppm = r.G[ix(gs.gx, gs.gy)];
+      const norm = clamp((ppm - 2) / 55, 0, 1);
+      gs.sp.position.y = gs.wy + Math.sin(t * .8 + gs.ph) * .12;
+      gs.sm.color.setHSL((48 - 38 * norm) / 360, .88, .56);
+      gs.sm.opacity = norm * .36;
+    });
+
+    // Thermal Heat-Map Overlay
+    this.thFloor.visible = VIS.showThermal;
+    if (VIS.showThermal && (t - this.lastSign > .25)) {
+      const img = this.thCtx.createImageData(CONFIG.NX, CONFIG.NY);
+      for (let y = 0; y < CONFIG.NY; y++) for (let x = 0; x < CONFIG.NX; x++) {
+        const [rr, gg, bb] = tempToRGB(r.T[ix(x, y)]);
+        const p = (y * CONFIG.NX + x) * 4;
+        img.data[p] = rr; img.data[p + 1] = gg; img.data[p + 2] = bb; img.data[p + 3] = 215;
+      }
+      this.thCtx.putImageData(img, 0, 0); this.thTex.needsUpdate = true;
+    }
+
+    // AC fan, ceiling fans, door, PVC curtains, frost, mist
+    this.rot.rotation.x += dt * (r.compLevel > .1 ? 16 * r.compLevel : (pw ? 1.5 : 0));
+    this.glowMat.emissiveIntensity = r.compLevel > .1 ? 1.5 : .15;
+    this.acLight.intensity = r.compLevel > .1 ? .85 : (pw ? .18 : 0);
+    this.cf.forEach(g => g.rotation.y += dt * r.fan * (pw ? 9 : 0));
+    const dt2 = E.t < E.door ? 1 : 0; this.dp += (dt2 - this.dp) * .08; this.door.rotation.y = -this.dp * 1.5;
+    this.doorLight.intensity = this.dp * 1.65; this.sunBeamMat.opacity = this.dp * .28;
+    this.partCurtains.forEach(p => { p.pv.rotation.z = Math.sin(t * 1.8 + p.i * .7) * (.016 + r.fan * .028 + this.dp * .05); });
+
+    const coldF = clamp((16 - r.Ta) / 14, 0, 1);
+    this.acFrostMat.opacity = .25 + .62 * clamp(coldF + r.compLevel * .25, 0, 1);
+    this.rackFrostMat.opacity = .15 + .50 * coldF;
+    this.condMat.opacity = clamp(((r.RH[0] - 65) / 35) * (.3 + .5 * coldF), .05, .68);
+
+    const sp = (r.compLevel > .1 ? 1 : .15) * (.4 + r.fan) * (pw ? 1 : .05);
+    const mVis = clamp((r.compLevel * .42) + .22 * coldF, 0, .55) * (pw ? 1 : .1);
+    this.mistArr.forEach(m => {
+      const u = (m.ph + t * (.07 + .11 * sp)) % 1;
+      m.sp.position.set(10.0 - u * 7.5, 2.95 - u * 1.6 + Math.sin(t * 1.3 + m.wob) * .08, m.zy * (.35 + u * .75));
+      const scf = m.r0 * (.7 + u * 1.2); m.sp.scale.set(scf * 1.35, scf, 1); m.sm.opacity = Math.sin(u * Math.PI) * mVis;
+    });
+
+    if (t - this.lastSign > .55) { this.lastSign = t; this.redrawBoards(r); }
+
+    const pulse = .55 + .45 * Math.sin(t * 5.5);
+    this.cm.forEach((m, i) => {
+      const f = r.F[i], q = clamp((f - CONFIG.SPOIL_THRESH) / (1 - CONFIG.SPOIL_THRESH), 0, 1), spoiled = f < CONFIG.SPOIL_THRESH, atRisk = !spoiled && f < .46;
+      if (VIS.showThermal) {
+        const [rr, gg, bb] = tempToRGB(r.zoneT[m.z]);
+        m.pm.color.setRGB(rr / 255, gg / 255, bb / 255);
+      } else if (m.z === 0) {
+        m.pm.color.set(spoiled ? 0x4c4a26 : new THREE.Color().setHSL((138 - 82 * (1 - q)) / 360, .66 - .25 * (1 - q), .38 - .10 * (1 - q)));
+      } else if (m.z === 2) {
+        m.pm.color.set(spoiled ? 0x4a351d : new THREE.Color().setHSL((48 - 18 * (1 - q)) / 360, .86 - .42 * (1 - q), .52 - .24 * (1 - q)));
+      } else {
+        m.pm.color.set(spoiled ? 0x42442c : new THREE.Color().setHSL((4 + 35 * (1 - q)) / 360, .80 - .22 * (1 - q), .44 - .14 * (1 - q)));
+      }
+      const shrink = spoiled ? .82 : (atRisk ? .91 + .09 * (f - .15) / .31 : 1);
+      m.tm.scale.set(1, shrink, 1); if (m.sm) m.sm.scale.set(1, shrink, 1);
+      m.bar.material.color.setHSL(q * .33, .78, .48);
+      m.bar.material.emissive.setHSL(q * .33, .82, spoiled ? (.45 * pulse) : atRisk ? (.38 * pulse) : .30);
+      m.bar.scale.x = Math.max(.04, f); m.bar.position.x = m.x - .7 * (1 - Math.max(.04, f));
+      if (VIS.inspMode) { m.tag.visible = true; m.tagMat.map = spoiled ? this.tSpoil : atRisk ? this.tWarn : this.tOk; m.tag.position.y = m.py + .88 + Math.sin(t * 2.4 + m.phv) * .025; }
+      else if (VIS.showTags && (spoiled || atRisk)) { m.tag.visible = true; m.tagMat.map = spoiled ? this.tSpoil : this.tWarn; m.tag.position.y = m.py + .88 + Math.sin(t * 3.2 + m.phv) * .035; }
+      else m.tag.visible = false;
+      if (spoiled || atRisk) { m.vap.visible = true; const vu = (t * .28 + m.phv) % 1; m.vap.position.y = m.py + .42 + vu * .42; m.vapMat.color.setHex(spoiled ? 0x9ea83a : 0xd9a838); m.vapMat.opacity = Math.sin(vu * Math.PI) * (spoiled ? .28 : .14); }
+      else m.vap.visible = false;
+    });
+
+    const swayY = moving ? Math.sin(t * 9) * .025 : 0;
+    this.cam.position.set(CV.px, CV.py + swayY, CV.pz);
+    this.cam.lookAt(CV.px + Math.cos(CV.yaw) * Math.cos(CV.pit), CV.py + swayY + Math.sin(CV.pit), CV.pz + Math.sin(CV.yaw) * Math.cos(CV.pit));
+    this.rd.render(this.sc, this.cam);
+  }
+}
+
+/* ============================================================================
+   MODULE 10: UI — App Orchestration, Story Mode, Benchmark Runner & Error Guard
+   ============================================================================ */
+const $ = id => document.getElementById(id);
+function showErr(msg) { const el = $("errToast"); if (!el) return; el.textContent = "Error: " + msg; el.style.display = "block"; setTimeout(() => { el.style.display = "none"; }, 6000); }
+window.addEventListener("error", e => showErr(e.message));
+window.addEventListener("unhandledrejection", e => showErr(String(e.reason)));
+
+/* State (strictly in memory, no localStorage) */
+let E, rmB, rmA, sensB, sensA, stB, stA, bridgeB, bridgeA, hwMock;
+let run = false, acc = 0, lastT = performance.now(), hist = [], lh = 0, alertsLog = [];
+let baseMode = "tuned", removeAi = false, shadowMode = false, simGap = true, currentSeed = 7;
+
+const VB = new StoreView3D($("cb"), false);
+const VA = new StoreView3D($("ca"), true);
+
+function resetSim(seed = currentSeed, scCode = 0) {
+  currentSeed = seed;
+  const initRng = new SeededRNG(seed);
+  const F0 = CONFIG.CRATES.map(() => 0.88 + 0.11 * initRng.next());
+  const cVars = CONFIG.CRATES.map(() => 0.82 + 0.36 * initRng.next());
+  E = createEnv(scCode);
+  rmB = new RoomSim(seed + 101, F0, cVars);
+  rmA = new RoomSim(seed + 101, F0, cVars);
+  if (scCode === 4 || scCode === 6) applyScenarioToEnv(E, [rmB, rmA], scCode);
+  sensB = new SensorSuite(seed + 303);
+  sensA = new SensorSuite(seed + 303);
+  const sp = +$("sp").value;
+  stB = makeCtrlState(baseMode, sp);
+  stA = makeCtrlState(removeAi ? "tuned" : "ai", sp);
+  bridgeB = new SimBridge(rmB, sensB);
+  bridgeA = new SimBridge(rmA, sensA);
+  hwMock = new MockHardwareBridge("ludhiana_pilot_01");
+  hist = []; lh = 0; alertsLog = [];
+  $("scNow").textContent = (SCENARIO_LIST.find(s => s.code === scCode) || { name: "Standard" }).name;
+}
+
+function triggerScenario(code) {
+  applyScenarioToEnv(E, [rmB, rmA], code);
+  const names = { 1: "Hot Day (+8°C, 24h)", 2: "Power Cut (10h)", 3: "Door Open (3h)", 4: "Warm Harvest (+6°C)", 5: "Dry Spell (12h)", 6: "Ethylene Surge", 7: "Mandi Crisis (36h Heat+Cut)", 8: "Sensor Fault (Zone B)", 9: "Forecasted Cut (+4h)" };
+  $("scNow").textContent = names[code] || "Custom";
+  alertsLog.push(names[code] || "Scenario triggered");
+}
+
+/* Smooth camera easing helper */
+function glideTo(px, py, pz, yaw, pit) { CV.tx = px; CV.ty = py; CV.tz = pz; CV.tyaw = yaw; CV.tpit = pit; $("wk").value = px.toFixed(1); }
+
+/* Sidebar tabs & mobile drawer */
+const side = $("side"), cfgBtn = $("cfgBtn");
+const closeSide = () => { side.classList.remove("show"); cfgBtn.classList.remove("open"); };
+cfgBtn.onclick = e => { e.stopPropagation(); const o = side.classList.toggle("show"); cfgBtn.classList.toggle("open", o); if (o) drawChart(); };
+$("sideClose").onclick = closeSide;
+document.addEventListener("pointerdown", e => { if (window.innerWidth < 1024 && side.classList.contains("show") && !side.contains(e.target) && !cfgBtn.contains(e.target)) closeSide(); });
+document.querySelectorAll(".stab").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll(".stab").forEach(x => x.classList.remove("on"));
+    document.querySelectorAll(".tpane").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); $("tp-" + b.dataset.t).classList.add("on");
+    if (b.dataset.t === "ctrl") drawChart();
+    if (b.dataset.t === "bench" && lastBmData) drawBmChart(lastBmData);
+  };
+});
+
+/* Onboarding 2-step modal */
+let selSc = 0;
+$("scGrid").querySelectorAll(".sc-opt").forEach(b => { b.onclick = () => { $("scGrid").querySelectorAll(".sc-opt").forEach(x => x.classList.remove("sel")); b.classList.add("sel"); selSc = +b.dataset.sc; }; });
+$("btnNext").onclick = () => { $("mStep1").classList.remove("on"); $("mStep2").classList.add("on"); };
+$("btnBack").onclick = () => { $("mStep2").classList.remove("on"); $("mStep1").classList.add("on"); };
+$("btnLaunch").onclick = () => { $("ovl").classList.add("hide"); resetSim(7, selSc); run = true; $("pl").textContent = "Pause"; };
+
+/* Controls bindings */
+$("pl").onclick = () => { run = !run; $("pl").textContent = run ? "Pause" : "Resume"; };
+$("rs").onclick = () => resetSim(currentSeed, 0);
+$("baseSel").onchange = () => { baseMode = $("baseSel").value; resetSim(currentSeed, E.scenario); };
+$("qualSel").onchange = () => { VIS.quality = $("qualSel").value; if (VIS.quality !== "auto") { VB.applyQuality(VIS.quality); VA.applyQuality(VIS.quality); } };
+$("sp").oninput = () => { const v = +$("sp").value; stB.userSetpoint = v; if (removeAi) stA.userSetpoint = v; $("spv").textContent = v + "°C"; };
+$("wk").oninput = () => { CV.tx = null; CV.px = +$("wk").value; };
+$("camZ3").onclick = () => glideTo(-9.3, 1.7, 0, 0, -.04);
+$("camZ2").onclick = () => glideTo(-3.8, 1.7, 0, 0, -.04);
+$("camZ1").onclick = () => glideTo(2.0, 1.7, 0, 0, -.02);
+$("ov").onclick = () => glideTo(-10.0, 3.4, 0, 0, -.28);
+$("chkTag").onchange = () => { VIS.showTags = $("chkTag").checked; };
+$("chkInsp").onchange = () => { VIS.inspMode = $("chkInsp").checked; };
+$("chkGas").onchange = () => { VIS.showGas = $("chkGas").checked; updateLegend(); };
+$("chkTherm").onchange = () => { VIS.showThermal = $("chkTherm").checked; updateLegend(); };
+$("chkNoAi").onchange = () => { removeAi = $("chkNoAi").checked; stA.mode = removeAi ? "tuned" : "ai"; stA.userSetpoint = +$("sp").value; };
+$("chkShadow").onchange = () => { shadowMode = $("chkShadow").checked; };
+$("chkGap").onchange = () => { simGap = $("chkGap").checked; };
+$("chkRec").onchange = () => { document.body.classList.toggle("rec", $("chkRec").checked); };
+$("btnExpCtrl").onclick = exportControllerJS;
+[1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(c => { const el = $("e" + c); if (el) el.onclick = () => triggerScenario(c); });
+
+function updateLegend() {
+  const leg = $("ovLeg");
+  if (VIS.showThermal) {
+    leg.classList.add("show"); $("legTitle").textContent = "Thermal (°C)"; $("legMin").textContent = "0°C"; $("legMax").textContent = "28°C";
+    $("legBar").style.background = "linear-gradient(90deg,#145aff,#14e6ff,#3ce64b,#fac814,#fa2314)";
+  } else if (VIS.showGas) {
+    leg.classList.add("show"); $("legTitle").textContent = "Ethylene (ppm)"; $("legMin").textContent = "2"; $("legMax").textContent = "60+";
+    $("legBar").style.background = "linear-gradient(90deg,rgba(245,200,66,.15),#f5b942,#f43f5e)";
+  } else leg.classList.remove("show");
+}
+updateLegend();
+
+/* Keyboard + Touch 360° Look & Directional Walk + Pinch */
+const keys = {};
+addEventListener("keydown", e => { if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return; keys[e.key.toLowerCase()] = true; });
+addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+let walkDir = 0;
+const bindHold = (id, dir) => {
+  const el = $(id), start = e => { e.preventDefault(); walkDir = dir; el.classList.add("held"); }, stop = () => { if (walkDir === dir) walkDir = 0; el.classList.remove("held"); };
+  el.addEventListener("pointerdown", start); el.addEventListener("pointerup", stop); el.addEventListener("pointerleave", stop); el.addEventListener("pointercancel", stop);
+};
+bindHold("mFwd", 1); bindHold("mBwd", -1);
+let dr = null, pinchD = 0;
+["cb", "ca"].forEach(i => {
+  const el = $(i);
+  el.addEventListener("pointerdown", e => { if (e.isPrimary) { CV.tx = null; dr = [e.clientX, e.clientY]; } });
+  el.addEventListener("touchstart", e => { if (e.touches.length === 2) { dr = null; pinchD = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); } }, { passive: true });
+  el.addEventListener("touchmove", e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const d2 = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      if (pinchD) { CV.px = clamp(CV.px + Math.cos(CV.yaw) * (d2 - pinchD) * .025, -10.2, 8.5); $("wk").value = CV.px.toFixed(1); }
+      pinchD = d2;
+    }
+  }, { passive: false });
+  el.addEventListener("touchend", () => { pinchD = 0; }, { passive: true });
+});
+addEventListener("pointerup", () => dr = null); addEventListener("pointercancel", () => dr = null);
+addEventListener("pointermove", e => { if (!dr || !e.isPrimary) return; CV.yaw += (e.clientX - dr[0]) * .0065; CV.pit = clamp(CV.pit - (e.clientY - dr[1]) * .0045, -1.05, .85); dr = [e.clientX, e.clientY]; });
+
+/* Story Mode (Guided 90s Demo Tour for Competition Video) */
+const STORY_STEPS = [
+  { dur: 12, cam: [-9.5, 1.7, 0, 0, -.04], sc: null, txt: "Zone C (Bananas): Notice the yellow grow lights and ripening gas manifold. The Tuned Thermostat (left) runs fixed schedules, while FreshGuard AI (right) regulates dampers, lighting, and gas from noisy sensors." },
+  { dur: 12, cam: [-3.8, 1.7, 0, 0, -.04], sc: 6,    txt: "Zone B (Tomatoes): We just triggered an Ethylene Surge. Watch the AI's overhead exhaust hood visibly extract the gas plume while clear PVC curtains isolate adjacent bays." },
+  { dur: 12, cam: [2.0,  1.7, 0, 0, -.02], sc: 5,    txt: "Zone A (Leafy Greens): Dry Spell triggered! FreshGuard AI opens Zone A's airflow damper and activates ultrasonic mist droplets to protect the 95–100% RH band." },
+  { dur: 15, cam: [-10.0,3.3, 0, 0, -.26], sc: 7,    txt: "Mandi Crisis (36h Heatwave + Forecasted Power Cut): The AI's rolling-horizon MPC anticipates the outage, pre-chills thermal mass, then seals fans during emergency red-light blackout." },
+  { dur: 12, cam: [-4.5, 1.9, 0, .4, -.08], sc: null, txt: "Measurable Results: Compare spoiled kg, energy kWh, and live ₹ savings at the top. Open the Bench tab to run 20 paired headless seeds across all 9 scenarios." }
+];
+let storyIdx = -1, storyT = 0, storyPaused = false;
+function startStory() {
+  $("ovl").classList.add("hide"); resetSim(7, 0); run = true; $("pl").textContent = "Pause"; $("sd").value = "24";
+  storyIdx = 0; storyT = 0; storyPaused = false; $("storyBar").classList.add("show"); applyStoryStep();
+}
+function applyStoryStep() {
+  if (storyIdx < 0 || storyIdx >= STORY_STEPS.length) { exitStory(); return; }
+  const s = STORY_STEPS[storyIdx];
+  $("storyStep").textContent = `Guided Demo · ${storyIdx + 1}/${STORY_STEPS.length}`;
+  $("storyTxt").textContent = s.txt;
+  glideTo(...s.cam);
+  if (s.sc) triggerScenario(s.sc);
+}
+function exitStory() { storyIdx = -1; $("storyBar").classList.remove("show"); document.body.classList.remove("rec"); $("chkRec").checked = false; }
+$("btnDemo").onclick = startStory;
+$("stPause").onclick = () => { storyPaused = !storyPaused; $("stPause").textContent = storyPaused ? "Resume" : "Pause"; };
+$("stSkip").onclick = () => { storyIdx++; storyT = 0; applyStoryStep(); };
+$("stRec").onclick = () => { const on = !document.body.classList.contains("rec"); document.body.classList.toggle("rec", on); $("chkRec").checked = on; };
+$("stExit").onclick = exitStory;
+
+/* Benchmark Runner (Time-sliced with rAF so UI never freezes) */
+let lastBmData = null, bmRunning = false;
+function runBenchmarkUI() {
+  if (bmRunning) return;
+  bmRunning = true;
+  const N = clamp(+$("bmSeeds").value || 20, 5, 100);
+  const sp = +$("sp").value;
+  const totalJobs = SCENARIO_LIST.length * N;
+  let sIdx = 0, nIdx = 0, done = 0;
+  const raw = SCENARIO_LIST.map(() => []);
+  $("bmStat").textContent = `Running 0 / ${totalJobs} paired 7-day simulations...`;
+  function chunk() {
+    const t0 = performance.now();
+    while (performance.now() - t0 < 22 && sIdx < SCENARIO_LIST.length) {
+      const sc = SCENARIO_LIST[sIdx];
+      raw[sIdx].push(runSingleHeadless(1000 + nIdx * 17 + sc.code * 3, sc.code, baseMode, sp, simGap, 7));
+      nIdx++; done++;
+      if (nIdx >= N) { nIdx = 0; sIdx++; }
+    }
+    $("bmProg").style.width = (100 * done / totalJobs).toFixed(1) + "%";
+    $("bmStat").textContent = `Running ${done} / ${totalJobs} paired 7-day runs (${baseMode} vs AI)...`;
+    if (sIdx < SCENARIO_LIST.length) { requestAnimationFrame(chunk); return; }
+    // Aggregate statistics
+    lastBmData = SCENARIO_LIST.map((sc, i) => {
+      const arr = raw[i];
+      return {
+        scenario: sc.name, baseline: baseMode, seeds: N,
+        bSpKg: stats(arr.map(x => x.bSpKg)), aSpKg: stats(arr.map(x => x.aSpKg)),
+        bKwh: stats(arr.map(x => x.bKwh)), aKwh: stats(arr.map(x => x.aKwh)),
+        peakKw: stats(arr.map(x => x.peakKw)), optPct: stats(arr.map(x => x.optPct)),
+        aFresh: stats(arr.map(x => x.aFresh)), shelfExt: stats(arr.map(x => x.shelfExt)),
+        co2Saved: stats(arr.map(x => x.co2Saved)), netSaved: stats(arr.map(x => x.netSaved))
+      };
+    });
+    bmRunning = false;
+    const wins = lastBmData.filter(d => d.netSaved.mean > 0).length;
+    $("bmStat").textContent = `Done (${N} seeds × 9 scenarios vs ${baseMode}): AI won ${wins}/9 scenarios. Simulation results. Not field data.`;
+    drawBmChart(lastBmData);
+    renderBmTable(lastBmData);
+  }
+  requestAnimationFrame(chunk);
+}
+
+function drawBmChart(data) {
+  const c = $("bmCh"); if (!c.clientWidth) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), w = c.clientWidth, h = 165;
+  c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+  const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const vals = data.map(d => d.netSaved.mean), errs = data.map(d => d.netSaved.ci95);
+  const maxAbs = Math.max(500, ...vals.map((v, i) => Math.abs(v) + errs[i]));
+  const hasNeg = vals.some((v, i) => v - errs[i] < 0);
+  const padL = 34, padR = 8, padT = 14, padB = 34, pw = w - padL - padR, ph = h - padT - padB;
+  const y0 = hasNeg ? padT + ph * 0.65 : padT + ph;
+  const scale = (hasNeg ? ph * 0.6 : ph) / maxAbs;
+  g.strokeStyle = "rgba(148,163,184,.35)"; g.beginPath(); g.moveTo(padL, y0); g.lineTo(w - padR, y0); g.stroke();
+  g.fillStyle = "#8fa6bf"; g.font = "9px sans-serif"; g.fillText("₹0", 4, y0 + 3); g.fillText("₹" + (maxAbs | 0), 2, padT + 6);
+  const bw = pw / data.length;
+  data.forEach((d, i) => {
+    const x = padL + i * bw + bw * 0.16, barW = bw * 0.68, bh = d.netSaved.mean * scale;
+    g.fillStyle = d.netSaved.mean >= 0 ? "#10b981" : "#f43f5e";
+    g.fillRect(x, bh >= 0 ? y0 - bh : y0, barW, Math.abs(bh));
+    // 95% CI error bar
+    const cx = x + barW / 2, ey1 = y0 - (d.netSaved.mean + d.netSaved.ci95) * scale, ey2 = y0 - (d.netSaved.mean - d.netSaved.ci95) * scale;
+    g.strokeStyle = "#e2f2ff"; g.lineWidth = 1.2; g.beginPath(); g.moveTo(cx, ey1); g.lineTo(cx, ey2); g.moveTo(cx - 3, ey1); g.lineTo(cx + 3, ey1); g.moveTo(cx - 3, ey2); g.lineTo(cx + 3, ey2); g.stroke();
+    g.fillStyle = "#94aac2"; g.font = "8.5px sans-serif"; g.save(); g.translate(cx, h - 6); g.rotate(-0.45); g.fillText(d.scenario.slice(0, 7), -12, 0); g.restore();
+  });
+}
+
+function renderBmTable(data) {
+  $("bmBody").innerHTML = data.map(d => {
+    const cls = d.netSaved.mean <= 0 ? ' class="loss"' : '';
+    return `<tr${cls}><td><b>${d.scenario}</b></td><td>${d.bSpKg.mean.toFixed(0)}→${d.aSpKg.mean.toFixed(0)}</td><td>${d.bKwh.mean.toFixed(0)}→${d.aKwh.mean.toFixed(0)}</td><td>${d.peakKw.mean.toFixed(2)}</td><td>${d.optPct.mean.toFixed(0)}%</td><td>${d.aFresh.mean.toFixed(0)}%</td><td>${d.shelfExt.mean >= 0 ? "+" : ""}${d.shelfExt.mean.toFixed(1)}d</td><td>${d.co2Saved.mean.toFixed(0)}</td><td><b>₹${d.netSaved.mean.toFixed(0)} ± ${d.netSaved.ci95.toFixed(0)}</b></td></tr>`;
+  }).join("");
+}
+
+$("btnRunBm").onclick = runBenchmarkUI;
+$("btnBmOpen").onclick = () => { $("bmOvl").classList.remove("hide"); if (!lastBmData) runBenchmarkUI(); };
+$("bmClose").onclick = () => $("bmOvl").classList.add("hide");
+$("btnCsv").onclick = () => {
+  if (!lastBmData) { showErr("Run benchmark first."); return; }
+  const hdr = "scenario,baseline,seeds,base_spoiled_kg,ai_spoiled_kg,base_kwh,ai_kwh,peak_kw,opt_band_pct,day7_fresh_pct,shelf_ext_days,co2_saved_kg,net_saved_inr_mean,net_saved_inr_ci95";
+  const rows = lastBmData.map(d => [d.scenario, d.baseline, d.seeds, d.bSpKg.mean.toFixed(2), d.aSpKg.mean.toFixed(2), d.bKwh.mean.toFixed(2), d.aKwh.mean.toFixed(2), d.peakKw.mean.toFixed(2), d.optPct.mean.toFixed(1), d.aFresh.mean.toFixed(1), d.shelfExt.mean.toFixed(2), d.co2Saved.mean.toFixed(2), d.netSaved.mean.toFixed(2), d.netSaved.ci95.toFixed(2)].join(","));
+  downloadFile("freshguard_benchmark.csv", [hdr, ...rows].join("\n"), "text/csv");
+};
+$("btnJson").onclick = () => { if (!lastBmData) { showErr("Run benchmark first."); return; } downloadFile("freshguard_benchmark.json", JSON.stringify({ disclaimer: "Simulation results. Not field data.", results: lastBmData }, null, 2), "application/json"); };
+$("btnCopy").onclick = () => {
+  if (!lastBmData) { showErr("Run benchmark first."); return; }
+  const avgSav = stats(lastBmData.map(d => d.netSaved.mean)).mean;
+  const wins = lastBmData.filter(d => d.netSaved.mean > 0).length;
+  const txt = `FreshGuard AI (Kalman Filter + Online RLS + Rolling-Horizon MPC) was benchmarked headless across 9 scenarios (${lastBmData[0].seeds} paired seeds × 7 days) against a fair ${lastBmData[0].baseline} baseline under noisy sensors and hidden spoilage physics. AI outperformed the baseline in ${wins}/9 scenarios with an average simulated net savings of ₹${avgSav.toFixed(0)} per 360 kg room/week. (Simulation results. Not field data.)`;
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).catch(() => {});
+  else { const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); }
+  $("bmStat").textContent = "Summary copied to clipboard!";
+};
+
+function renderTests() {
+  const t = runSelfTests();
+  $("testOut").innerHTML = t.map(x => `<div><span class="${x.pass ? "st-pass" : "st-fail"}">[${x.pass ? "PASS" : "FAIL"}]</span> ${x.name}</div>`).join("");
+}
+$("btnTests").onclick = renderTests;
+
+/* Live UI refresh (throttled ~4 Hz) */
+function drawChart() {
+  const c = $("ch"); if (!c.clientWidth) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), cw = c.clientWidth, ch = 132;
+  if (c.width !== Math.round(cw * dpr)) { c.width = Math.round(cw * dpr); c.height = Math.round(ch * dpr); }
+  const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const padL = 28, padR = 36, padT = 10, padB = 18, pw = cw - padL - padR, ph = ch - padT - padB;
+  const tx = Math.max(168, hist.length ? hist[hist.length - 1][0] : 0);
+  g.clearRect(0, 0, cw, ch); g.font = "9.5px sans-serif";
+  for (let i = 0; i <= 4; i++) { const y = padT + ph * (1 - i / 4); g.strokeStyle = "rgba(148,163,184,.14)"; g.beginPath(); g.moveTo(padL, y); g.lineTo(cw - padR, y); g.stroke(); g.fillStyle = "#7e93a8"; g.fillText(i * 25 + "%", 2, y + 3); }
+  g.setLineDash([4, 4]); g.beginPath(); const ys = padT + ph * (1 - CONFIG.SPOIL_THRESH); g.moveTo(padL, ys); g.lineTo(cw - padR, ys); g.strokeStyle = "rgba(244,63,94,.7)"; g.stroke(); g.setLineDash([]);
+  [[1, "#f59e0b", "rgba(245,158,11,.14)"], [2, "#10b981", "rgba(16,185,129,.18)"]].forEach(([j, col, fill]) => {
+    if (!hist.length) return;
+    g.beginPath(); hist.forEach((p, i) => { const x = padL + pw * p[0] / tx, y = padT + ph * (1 - p[j]); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+    g.strokeStyle = col; g.lineWidth = 2.2; g.stroke();
+    const lp = hist[hist.length - 1], lx = padL + pw * lp[0] / tx, ly = padT + ph * (1 - lp[j]);
+    g.lineTo(lx, padT + ph); g.lineTo(padL, padT + ph); g.closePath(); g.fillStyle = fill; g.fill();
+    g.fillStyle = col; g.beginPath(); g.arc(lx, ly, 3, 0, 6.283); g.fill();
+    g.font = "bold 9.5px sans-serif"; g.fillText((lp[j] * 100).toFixed(0) + "%", lx + 5, ly + 3);
+  });
+}
+
+function updateBizCase() {
+  const capT = Math.max(0.5, +$("bzCap").value || 10), pr = +$("bzPr").value || 30, ep = +$("bzEp").value || 8, hw = +$("bzHw").value || 25000, co2F = +$("bzCo2").value || 0.82;
+  CONFIG.PRICE_INR_KG = pr; CONFIG.CO2_KG_KWH = co2F;
+  const elapsedDays = Math.max(0.25, (E.t - 8) / 24);
+  const scale = (capT * 1000) / 360;
+  const bCost = rmB.spoiledCount() * CONFIG.CRATE_KG * pr + rmB.kwh * ep;
+  const aCost = rmA.spoiledCount() * CONFIG.CRATE_KG * pr + rmA.kwh * ep;
+  const savMo = ((bCost - aCost) / elapsedDays) * 30 * scale;
+  $("bzSav").textContent = (savMo >= 0 ? "₹" : "-₹") + Math.abs(savMo).toFixed(0);
+  $("bzPay").textContent = savMo > 50 ? (hw / savMo).toFixed(1) + " mo" : "N/A";
+  $("bzCpt").textContent = "₹" + (hw / capT).toFixed(0);
+}
+["bzCap", "bzPr", "bzEp", "bzHw", "bzLs", "bzCo2"].forEach(id => { $(id).oninput = updateBizCase; });
+
+function refreshUI() {
+  const bName = baseMode === "tuned" ? "Tuned Therm" : baseMode === "expert" ? "Expert Rules" : "Naive";
+  $("bTitle").textContent = "Baseline · " + bName;
+  $("aTitle").textContent = removeAi ? "AI REMOVED (Tuned)" : shadowMode ? "AI Shadow Mode" : "FreshGuard AI · MPC+RLS";
+  $("pb").textContent = `Set ${rmB.setpoint.toFixed(1)}°C`;
+  $("pa").textContent = `Set ${rmA.setpoint.toFixed(1)}°C · ${rmA.curKw.toFixed(1)}kW`;
+  $("bDefrost").classList.toggle("show", rmB.defrost);
+  $("aSensWarn").classList.toggle("show", stA.est.anySuspect);
+  $("aSafeFlag").classList.toggle("show", stA.safetyOverride);
+  $("aShadFlag").classList.toggle("show", shadowMode);
+  $("aNoAiFlag").classList.toggle("show", removeAi);
+
+  const fmtHud = (r, nm) => `<b>${nm}</b> · ${r.Ta.toFixed(1)}°C · RH ${r.RH[0] | 0}% · Gas ${r.zoneG[1].toFixed(0)}ppm · ${r.curKw.toFixed(1)}kW · <span style="color:#9fb4c9">${r.status}</span>`;
+  $("hb").innerHTML = fmtHud(rmB, bName);
+  $("ha").innerHTML = fmtHud(rmA, removeAi ? "Tuned" : "AI");
+
+  const fmtMet = (r, id) => {
+    const kg = r.spoiledCount() * CONFIG.CRATE_KG, fr = r.avgFreshness() * 100, cost = kg * CONFIG.PRICE_INR_KG + r.energyCost;
+    const spC = kg > 100 ? "bad" : kg > 30 ? "warn" : "good", frC = fr > 60 ? "good" : fr > 35 ? "warn" : "bad";
+    $(id).innerHTML = `<div class="km ${spC}"><span>Spoiled</span><b>${kg} kg</b></div><div class="km ${frC}"><span>Fresh</span><b>${fr.toFixed(0)}%</b></div><div class="km"><span>Energy</span><b>${r.kwh.toFixed(0)} kWh</b></div><div class="km"><span>Cost</span><b>₹${cost.toFixed(0)}</b></div>`;
+  };
+  fmtMet(rmB, "mb"); fmtMet(rmA, "ma");
+
+  const bKg = rmB.spoiledCount() * CONFIG.CRATE_KG, aKg = rmA.spoiledCount() * CONFIG.CRATE_KG, sKg = bKg - aKg;
+  const bCost = bKg * CONFIG.PRICE_INR_KG + rmB.energyCost, aCost = aKg * CONFIG.PRICE_INR_KG + rmA.energyCost, sCost = bCost - aCost;
+  const co2 = (rmB.kwh - rmA.kwh) * CONFIG.CO2_KG_KWH;
+  $("ikg").textContent = (sKg >= 0 ? "+" : "") + sKg + " kg";
+  $("irs").textContent = (sCost >= 0 ? "₹" : "-₹") + Math.abs(sCost).toFixed(0);
+  $("ico2").textContent = co2.toFixed(1) + " kg";
+  const savP = $("savTop");
+  savP.textContent = `vs ${bName}: ${sCost >= 0 ? "₹" : "-₹"}${Math.abs(sCost).toFixed(0)}`;
+  savP.classList.toggle("neg", sCost < 0);
+  $("clk").textContent = `Day ${((E.t - 8) / 24 + 1) | 0} · ${String(E.t % 24 | 0).padStart(2, "0")}:00 · ${E.Tout().toFixed(0)}°C`;
+
+  // Actuators
+  $("acAC").className = "act-p" + (rmA.compLevel > .1 ? " cy" : ""); $("vAC").textContent = !E.isPowerOn() ? "CUT" : rmA.compLevel > .1 ? "ON" : "IDLE";
+  $("acMist").className = "act-p" + (rmA.mist > .1 ? " cy" : ""); $("vMist").textContent = rmA.mist > .1 ? "SPRAY" : "OFF";
+  $("acVent").className = "act-p" + (rmA.vent > .1 ? " on" : ""); $("vVent").textContent = rmA.vent > .1 ? "PURGE" : "SHUT";
+  $("acGas").className = "act-p" + (rmA.zoneG[2] > 15 ? " am" : ""); $("vGas").textContent = (rmA.zoneG[2] | 0) + "ppm";
+  $("acLit").className = "act-p" + (rmA.light < .3 ? " on" : ""); $("vLit").textContent = (rmA.light * 100 | 0) + "%";
+
+  // AI Brain tab
+  $("mapeA").textContent = (stA.rls[0].mape * 100).toFixed(1) + "%";
+  $("mapeB").textContent = (stA.rls[1].mape * 100).toFixed(1) + "%";
+  $("mapeC").textContent = (stA.rls[2].mape * 100).toFixed(1) + "%";
+  $("kfStatus").textContent = stA.est.anySuspect ? "FAULT FALLBACK" : "Nominal";
+  $("kfStatus").style.color = stA.est.anySuspect ? "#fbbf24" : "#6ee7b7";
+  $("kfTbl").innerHTML = CONFIG.ZONES.map((Z, z) => `Zone ${Z.code}: Est <b>${stA.est.T[z].toFixed(1)}°C</b> / ${stA.est.RH[z] | 0}% / ${stA.est.G[z].toFixed(1)}ppm · Damper <b>${(rmA.dampers[z] * 100) | 0}%</b>${stA.est.suspect[z] ? ' <b style="color:#fbbf24">[FB]</b>' : ''}`).join("<br>");
+  $("whyList").innerHTML = stA.whyLog.length ? stA.whyLog.map(w => `<div class="why-it">${w.reason}<small>Est. horizon impact: ~₹${w.impact.toFixed(0)} · Day ${((w.t - 8) / 24 + 1) | 0}</small></div>`).join("") : '<div style="color:var(--m);font-size:10.5px">Waiting for first AI decision...</div>';
+  $("safeTxt").textContent = stA.safetyOverride ? "INTERLOCK ACTIVE" : "All Clear";
+  $("safeTxt").style.color = stA.safetyOverride ? "#fb7185" : "#34d399";
+  $("shadBox").style.display = shadowMode ? "block" : "none";
+  if (shadowMode) $("shadBox").textContent = `Shadow Mode active: ${bName} controls actuators while AI logs recommendations (est. horizon delta ~₹${(stA.whyLog[0] ? stA.whyLog[0].impact : 0).toFixed(0)}).`;
+
+  // Hardware MQTT JSON log
+  if (hwMock.messages.length) $("hwLog").textContent = hwMock.messages.join("\n---\n");
+
+  // Alerts
+  const al = [];
+  if (stA.est.anySuspect) al.push(`<div class="al-item urg"><span class="al-tag">Sensor</span><span>Zone B primary sensor suspect — Kalman fell back to redundant SHT31</span></div>`);
+  alertsLog.slice(-1).forEach(m => al.push(`<div class="al-item evt"><span class="al-tag">Event</span><span>${m}</span></div>`));
+  const lowC = CONFIG.CRATES.map((c, k) => [c, rmA.F[k]]).filter(p => p[1] >= CONFIG.SPOIL_THRESH && p[1] < .55).sort((a, b) => a[1] - b[1]).slice(0, 2);
+  lowC.forEach(([c, f]) => al.push(`<div class="al-item urg"><span class="al-tag">Sell</span><span>Crate <b>${c.n}</b> at ${(f * 100) | 0}% — prioritize dispatch</span></div>`));
+  if (!al.length) al.push(`<div class="al-item ok"><span class="al-tag">OK</span><span>All 3 zones within safe bounds (simulated).</span></div>`);
+  $("al").innerHTML = al.join("");
+
+  // Active event button highlights
+  $("e1").classList.toggle("act", E.t < E.hot); $("e2").classList.toggle("act", !E.isPowerOn());
+  $("e3").classList.toggle("act", E.t < E.door); $("e5").classList.toggle("act", E.t < E.dry);
+  $("e8").classList.toggle("act", E.sensorFault);
+  cfgBtn.classList.toggle("has-ev", E.t < E.hot || !E.isPowerOn() || E.t < E.door || E.t < E.dry || E.sensorFault);
+
+  drawChart();
+  updateBizCase();
+}
+
+/* Main Fixed-Timestep Loop + Adaptive Quality FPS Monitor + Visibility Pause */
+resetSim(7, 0);
+renderTests();
+let uiT = 0, fpsFrames = 0, fpsLast = performance.now(), fpsCur = 60;
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (document.hidden) { lastT = now; return; }
+  const dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+
+  // Adaptive FPS monitor
+  fpsFrames++;
+  if (now - fpsLast > 1200) {
+    fpsCur = Math.round(fpsFrames * 1000 / (now - fpsLast));
+    fpsFrames = 0; fpsLast = now;
+    $("fpsTag").textContent = fpsCur + " FPS";
+    if (VIS.quality === "auto" && fpsCur < 36 && !VIS.lowMode) { VIS.lowMode = true; VB.applyQuality("low"); VA.applyQuality("low"); }
+  }
+
+  // Smooth camera glide + directional walk
+  if (CV.tx !== null) {
+    CV.px += (CV.tx - CV.px) * .12; CV.py += (CV.ty - CV.py) * .12; CV.pz += (CV.tz - CV.pz) * .12;
+    CV.yaw += (CV.tyaw - CV.yaw) * .12; CV.pit += (CV.tpit - CV.pit) * .12;
+    if (Math.abs(CV.tx - CV.px) < .03) CV.tx = null;
+  }
+  const mv = (keys["w"] || keys["arrowup"] || walkDir > 0 ? 1 : 0) - (keys["s"] || keys["arrowdown"] || walkDir < 0 ? 1 : 0);
+  if (mv) {
+    CV.tx = null;
+    CV.px = clamp(CV.px + Math.cos(CV.yaw) * mv * dt * 4.4, -10.2, 8.5);
+    CV.pz = clamp(CV.pz + Math.sin(CV.yaw) * mv * dt * 4.4, -.95, .95);
+    $("wk").value = CV.px.toFixed(1);
+  }
+
+  // Story Mode timer
+  if (storyIdx >= 0 && !storyPaused) {
+    storyT += dt;
+    if (storyT >= STORY_STEPS[storyIdx].dur) { storyIdx++; storyT = 0; applyStoryStep(); }
+  }
+
+  // Fixed-timestep simulation accumulator (capped per frame)
+  if (run) {
+    acc += dt * (+$("sd").value) / CONFIG.DT;
+    let steps = 0;
+    while (acc >= 1 && steps < 24) {
+      E.t += CONFIG.DT;
+      const obsB = bridgeB.read(E, simGap), obsA = bridgeA.read(E, simGap);
+      const cmdB = decide(obsB, stB, CONFIG);
+      let cmdA = decide(obsA, stA, CONFIG);
+      if (shadowMode && !removeAi) {
+        stA.shadowCmd = cmdA;
+        cmdA = Object.assign({}, cmdB, { status: "Shadow: " + cmdB.status });
+      }
+      bridgeB.write(E, cmdB, simGap, false);
+      bridgeA.write(E, cmdA, simGap, !removeAi && !shadowMode);
+      if (steps === 0) hwMock.emit(obsA, cmdA);
+      acc--; steps++;
+      if (E.t - lh >= 1) { lh = E.t; hist.push([E.t - 8, rmB.avgFreshness(), rmA.avgFreshness()]); }
+    }
+    if (steps >= 24) acc = 0;
+  }
+
+  VB.render(dt, now / 1000, rmB, E, mv !== 0);
+  VA.render(dt, now / 1000, rmA, E, mv !== 0);
+
+  if (now - uiT > 250) { uiT = now; refreshUI(); }
+}
+requestAnimationFrame(loop);
+</script></body></html>
